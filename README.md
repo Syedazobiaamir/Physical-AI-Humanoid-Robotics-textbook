@@ -1,7 +1,7 @@
 # Physical AI & Humanoid Robotics Textbook
 
-[![Frontend CI](https://github.com/YOUR_USERNAME/physical-ai-textbook/actions/workflows/frontend.yml/badge.svg)](https://github.com/YOUR_USERNAME/physical-ai-textbook/actions/workflows/frontend.yml)
-[![Backend CI](https://github.com/YOUR_USERNAME/physical-ai-textbook/actions/workflows/backend.yml/badge.svg)](https://github.com/YOUR_USERNAME/physical-ai-textbook/actions/workflows/backend.yml)
+[![Frontend CI](https://github.com/Syedazobiaamir/Physical-AI-Humanoid-Robotics-textbook/actions/workflows/frontend.yml/badge.svg)](https://github.com/Syedazobiaamir/Physical-AI-Humanoid-Robotics-textbook/actions/workflows/frontend.yml)
+[![Backend CI](https://github.com/Syedazobiaamir/Physical-AI-Humanoid-Robotics-textbook/actions/workflows/backend.yml/badge.svg)](https://github.com/Syedazobiaamir/Physical-AI-Humanoid-Robotics-textbook/actions/workflows/backend.yml)
 
 An **AI-native, interactive textbook platform** for learning Physical AI and Humanoid Robotics. Built with modern web technologies and powered by AI for personalized learning experiences.
 
@@ -65,8 +65,8 @@ An **AI-native, interactive textbook platform** for learning Physical AI and Hum
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/YOUR_USERNAME/physical-ai-textbook.git
-cd physical-ai-textbook
+git clone https://github.com/Syedazobiaamir/Physical-AI-Humanoid-Robotics-textbook.git
+cd Physical-AI-Humanoid-Robotics-textbook
 ```
 
 ### 2. Start the Frontend
