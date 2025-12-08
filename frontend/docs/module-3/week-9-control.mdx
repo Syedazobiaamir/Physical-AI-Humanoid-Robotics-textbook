@@ -1,0 +1,461 @@
+---
+sidebar_position: 3
+title: "Week 9: Robot Control"
+description: "Implementing control systems for robot motion and manipulation"
+---
+
+import ChapterQuiz from '@site/src/components/ChapterQuiz';
+import ChatSelection from '@site/src/components/ChatSelection';
+
+# Week 9: Robot Control
+
+<ChatSelection chapterId="week-9-control">
+
+## Learning Objectives
+
+By the end of this chapter, you will be able to:
+
+1. Understand PID control theory and tuning
+2. Implement position and velocity controllers
+3. Apply trajectory tracking control
+4. Use ros2_control framework
+5. Handle control in real-time systems
+
+## Introduction
+
+Control systems are the bridge between planned motions and physical robot actuation. A well-designed controller ensures the robot follows desired trajectories accurately and safely.
+
+### Control Loop Architecture
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                                                              │
+│   Reference ─► Controller ─► Actuator ─► Robot ─► Sensor    │
+│       ▲                                              │       │
+│       └──────────────── Feedback ────────────────────┘       │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+## Theory: PID Control
+
+### PID Controller
+
+The PID (Proportional-Integral-Derivative) controller is fundamental:
+
+```
+u(t) = Kp*e(t) + Ki*∫e(τ)dτ + Kd*(de/dt)
+
+where:
+- e(t) = reference - measurement (error)
+- Kp = proportional gain
+- Ki = integral gain
+- Kd = derivative gain
+```
+
+### Controller Effects
+
+| Term | Effect | Reduces |
+|------|--------|---------|
+| P | Immediate response | Large errors |
+| I | Eliminates steady-state | Accumulated error |
+| D | Dampens oscillation | Overshoot |
+
+### Tuning Methods
+
+**Ziegler-Nichols Method:**
+1. Set Ki = Kd = 0
+2. Increase Kp until oscillation (Ku)
+3. Measure oscillation period (Tu)
+4. Calculate gains from table
+
+## Lab Tasks
+
+### Task 1: Implement PID Controller
+
+Create a PID controller in ROS2:
+
+```python
+# pid_controller.py
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import Float64
+from sensor_msgs.msg import JointState
+import time
+
+class PIDController(Node):
+    def __init__(self):
+        super().__init__('pid_controller')
+
+        # PID gains
+        self.declare_parameter('kp', 10.0)
+        self.declare_parameter('ki', 0.1)
+        self.declare_parameter('kd', 1.0)
+
+        self.kp = self.get_parameter('kp').value
+        self.ki = self.get_parameter('ki').value
+        self.kd = self.get_parameter('kd').value
+
+        # Controller state
+        self.integral = 0.0
+        self.prev_error = 0.0
+        self.prev_time = time.time()
+
+        # Reference
+        self.reference = 0.0
+
+        # Publishers and subscribers
+        self.cmd_pub = self.create_publisher(Float64, 'joint_command', 10)
+        self.state_sub = self.create_subscription(
+            JointState, 'joint_states', self.state_callback, 10
+        )
+        self.ref_sub = self.create_subscription(
+            Float64, 'reference', self.reference_callback, 10
+        )
+
+        # Control loop timer
+        self.timer = self.create_timer(0.01, self.control_loop)  # 100 Hz
+
+    def reference_callback(self, msg):
+        self.reference = msg.data
+
+    def state_callback(self, msg):
+        if len(msg.position) > 0:
+            self.current_position = msg.position[0]
+
+    def control_loop(self):
+        """Main PID control loop"""
+        current_time = time.time()
+        dt = current_time - self.prev_time
+
+        if dt <= 0:
+            return
+
+        # Compute error
+        error = self.reference - getattr(self, 'current_position', 0.0)
+
+        # Proportional term
+        p_term = self.kp * error
+
+        # Integral term with anti-windup
+        self.integral += error * dt
+        self.integral = max(-10.0, min(10.0, self.integral))  # Clamp
+        i_term = self.ki * self.integral
+
+        # Derivative term
+        d_term = self.kd * (error - self.prev_error) / dt
+
+        # Compute control output
+        output = p_term + i_term + d_term
+
+        # Publish command
+        cmd = Float64()
+        cmd.data = output
+        self.cmd_pub.publish(cmd)
+
+        # Update state
+        self.prev_error = error
+        self.prev_time = current_time
+
+def main(args=None):
+    rclpy.init(args=args)
+    controller = PIDController()
+    rclpy.spin(controller)
+    controller.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+### Task 2: Trajectory Tracking Controller
+
+Implement computed torque control:
+
+```python
+# trajectory_controller.py
+import numpy as np
+from typing import Tuple
+
+class TrajectoryController:
+    def __init__(self, kp: np.ndarray, kd: np.ndarray):
+        """
+        Computed torque trajectory controller
+
+        Args:
+            kp: Position gains (n_joints,)
+            kd: Velocity gains (n_joints,)
+        """
+        self.kp = np.diag(kp)
+        self.kd = np.diag(kd)
+
+    def compute_control(self,
+                       q_des: np.ndarray,
+                       qd_des: np.ndarray,
+                       qdd_des: np.ndarray,
+                       q: np.ndarray,
+                       qd: np.ndarray,
+                       M: np.ndarray,
+                       C: np.ndarray,
+                       G: np.ndarray) -> np.ndarray:
+        """
+        Compute control torques
+
+        Args:
+            q_des: Desired joint positions
+            qd_des: Desired joint velocities
+            qdd_des: Desired joint accelerations
+            q: Current joint positions
+            qd: Current joint velocities
+            M: Mass matrix
+            C: Coriolis matrix
+            G: Gravity vector
+
+        Returns:
+            Control torques
+        """
+        # Position and velocity errors
+        e = q_des - q
+        ed = qd_des - qd
+
+        # Feedback linearization (computed torque)
+        v = qdd_des + self.kd @ ed + self.kp @ e
+
+        # Control torque
+        tau = M @ v + C @ qd + G
+
+        return tau
+
+    def interpolate_trajectory(self,
+                               waypoints: np.ndarray,
+                               duration: float,
+                               dt: float) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Generate smooth trajectory through waypoints
+
+        Returns:
+            (positions, velocities, accelerations)
+        """
+        from scipy.interpolate import CubicSpline
+
+        n_points = int(duration / dt)
+        n_waypoints = len(waypoints)
+        t_waypoints = np.linspace(0, duration, n_waypoints)
+        t_traj = np.linspace(0, duration, n_points)
+
+        positions = []
+        velocities = []
+        accelerations = []
+
+        for dim in range(waypoints.shape[1]):
+            cs = CubicSpline(t_waypoints, waypoints[:, dim])
+            positions.append(cs(t_traj))
+            velocities.append(cs(t_traj, 1))  # First derivative
+            accelerations.append(cs(t_traj, 2))  # Second derivative
+
+        return (np.array(positions).T,
+                np.array(velocities).T,
+                np.array(accelerations).T)
+```
+
+### Task 3: ros2_control Integration
+
+Create a hardware interface:
+
+```cpp
+// hardware_interface.cpp
+#include <hardware_interface/system_interface.hpp>
+#include <hardware_interface/types/hardware_interface_type_values.hpp>
+#include <rclcpp/rclcpp.hpp>
+
+class RobotHardware : public hardware_interface::SystemInterface
+{
+public:
+    CallbackReturn on_init(const hardware_interface::HardwareInfo& info) override
+    {
+        if (hardware_interface::SystemInterface::on_init(info) != CallbackReturn::SUCCESS)
+        {
+            return CallbackReturn::ERROR;
+        }
+
+        // Initialize joint state storage
+        hw_positions_.resize(info_.joints.size(), 0.0);
+        hw_velocities_.resize(info_.joints.size(), 0.0);
+        hw_commands_.resize(info_.joints.size(), 0.0);
+
+        return CallbackReturn::SUCCESS;
+    }
+
+    std::vector<hardware_interface::StateInterface> export_state_interfaces() override
+    {
+        std::vector<hardware_interface::StateInterface> state_interfaces;
+        for (size_t i = 0; i < info_.joints.size(); i++)
+        {
+            state_interfaces.emplace_back(
+                info_.joints[i].name,
+                hardware_interface::HW_IF_POSITION,
+                &hw_positions_[i]
+            );
+            state_interfaces.emplace_back(
+                info_.joints[i].name,
+                hardware_interface::HW_IF_VELOCITY,
+                &hw_velocities_[i]
+            );
+        }
+        return state_interfaces;
+    }
+
+    std::vector<hardware_interface::CommandInterface> export_command_interfaces() override
+    {
+        std::vector<hardware_interface::CommandInterface> command_interfaces;
+        for (size_t i = 0; i < info_.joints.size(); i++)
+        {
+            command_interfaces.emplace_back(
+                info_.joints[i].name,
+                hardware_interface::HW_IF_POSITION,
+                &hw_commands_[i]
+            );
+        }
+        return command_interfaces;
+    }
+
+    hardware_interface::return_type read(
+        const rclcpp::Time& time, const rclcpp::Duration& period) override
+    {
+        // Read from hardware (sensors)
+        for (size_t i = 0; i < hw_positions_.size(); i++)
+        {
+            // In real implementation, read from actual sensors
+            hw_positions_[i] = hw_commands_[i];  // Simulated
+        }
+        return hardware_interface::return_type::OK;
+    }
+
+    hardware_interface::return_type write(
+        const rclcpp::Time& time, const rclcpp::Duration& period) override
+    {
+        // Write to hardware (actuators)
+        for (size_t i = 0; i < hw_commands_.size(); i++)
+        {
+            // In real implementation, send to actual actuators
+        }
+        return hardware_interface::return_type::OK;
+    }
+
+private:
+    std::vector<double> hw_positions_;
+    std::vector<double> hw_velocities_;
+    std::vector<double> hw_commands_;
+};
+```
+
+## Code Examples
+
+### Adaptive PID Controller
+
+```python
+# adaptive_pid.py
+import numpy as np
+
+class AdaptivePID:
+    def __init__(self, kp0: float, ki0: float, kd0: float,
+                 adaptation_rate: float = 0.01):
+        self.kp = kp0
+        self.ki = ki0
+        self.kd = kd0
+        self.gamma = adaptation_rate
+
+        self.integral = 0.0
+        self.prev_error = 0.0
+
+    def update(self, error: float, dt: float) -> float:
+        """Compute control with gain adaptation"""
+        # Integral and derivative
+        self.integral += error * dt
+        derivative = (error - self.prev_error) / dt if dt > 0 else 0
+
+        # Control output
+        u = self.kp * error + self.ki * self.integral + self.kd * derivative
+
+        # MIT rule adaptation
+        self.kp += self.gamma * error * error
+        self.ki += self.gamma * error * self.integral
+        self.kd += self.gamma * error * derivative
+
+        self.prev_error = error
+        return u
+```
+
+### Impedance Controller
+
+```python
+# impedance_controller.py
+import numpy as np
+
+class ImpedanceController:
+    def __init__(self, M_d: np.ndarray, D_d: np.ndarray, K_d: np.ndarray):
+        """
+        Cartesian impedance controller
+
+        Args:
+            M_d: Desired inertia matrix
+            D_d: Desired damping matrix
+            K_d: Desired stiffness matrix
+        """
+        self.M_d = M_d
+        self.D_d = D_d
+        self.K_d = K_d
+
+    def compute_force(self,
+                      x_d: np.ndarray,
+                      xd_d: np.ndarray,
+                      x: np.ndarray,
+                      xd: np.ndarray,
+                      f_ext: np.ndarray) -> np.ndarray:
+        """
+        Compute control force
+
+        Args:
+            x_d: Desired position
+            xd_d: Desired velocity
+            x: Current position
+            xd: Current velocity
+            f_ext: External force
+
+        Returns:
+            Control force
+        """
+        # Position and velocity errors
+        e = x_d - x
+        ed = xd_d - xd
+
+        # Impedance control law
+        # M_d * xdd + D_d * ed + K_d * e = f_ext
+        xdd_d = np.linalg.inv(self.M_d) @ (
+            f_ext - self.D_d @ ed - self.K_d @ e
+        )
+
+        return self.M_d @ xdd_d + self.D_d @ xd_d + self.K_d @ x_d
+```
+
+## Summary
+
+In this chapter, we covered:
+
+- PID control theory and tuning methods
+- Trajectory tracking with computed torque control
+- ros2_control framework integration
+- Advanced control strategies (adaptive, impedance)
+- Real-time control considerations
+
+## Additional Resources
+
+- [ros2_control Documentation](https://ros2-control.readthedocs.io/)
+- [Control Systems - Aström & Murray](http://www.cds.caltech.edu/~murray/amwiki/)
+- [Robotics Control Theory](https://www.springer.com/gp/book/9780387987910)
+
+</ChatSelection>
+
+## Chapter Quiz
+
+<ChapterQuiz chapterId="week-9-control" />

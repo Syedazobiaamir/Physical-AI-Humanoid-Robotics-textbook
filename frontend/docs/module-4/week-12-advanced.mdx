@@ -1,0 +1,582 @@
+---
+sidebar_position: 3
+title: "Week 12: Advanced Topics"
+description: "Explore advanced robotics topics including multi-robot systems and cloud robotics"
+---
+
+import ChapterQuiz from '@site/src/components/ChapterQuiz';
+import ChatSelection from '@site/src/components/ChatSelection';
+
+# Week 12: Advanced Topics
+
+<ChatSelection chapterId="week-12-advanced">
+
+## Learning Objectives
+
+By the end of this chapter, you will be able to:
+
+1. Understand multi-robot coordination strategies
+2. Implement distributed systems for robotics
+3. Apply cloud robotics concepts
+4. Work with robot fleet management
+5. Handle edge computing for real-time processing
+
+## Introduction
+
+Advanced robotics extends beyond individual robots to systems of robots working together, leveraging cloud resources, and operating at scale in industrial environments.
+
+### Multi-Robot Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                      Cloud Infrastructure                         │
+│    ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
+│    │   Fleet     │  │    Task     │  │    Data     │             │
+│    │  Manager    │  │  Planner    │  │  Analytics  │             │
+│    └──────┬──────┘  └──────┬──────┘  └──────┬──────┘             │
+└───────────┼────────────────┼────────────────┼────────────────────┘
+            │                │                │
+    ┌───────┴────────────────┴────────────────┴───────┐
+    │              Edge Computing Layer               │
+    └───────┬────────────────┬────────────────┬───────┘
+            │                │                │
+       ┌────┴────┐      ┌────┴────┐      ┌────┴────┐
+       │ Robot 1 │      │ Robot 2 │      │ Robot N │
+       └─────────┘      └─────────┘      └─────────┘
+```
+
+## Theory: Distributed Robotics
+
+### Consensus Algorithms
+
+For multi-robot agreement on shared state:
+
+```
+Average Consensus:
+x_i(k+1) = x_i(k) + ε * Σ_j∈N_i (x_j(k) - x_i(k))
+
+where:
+- x_i is agent i's state
+- N_i is neighbors of agent i
+- ε is step size (0 < ε < 1/max_degree)
+```
+
+### Task Allocation
+
+Market-based approaches for task distribution:
+
+```
+Auction Protocol:
+1. Auctioneer broadcasts task
+2. Robots compute bids (cost estimates)
+3. Auctioneer assigns to lowest bidder
+4. Winner confirms and executes
+```
+
+## Lab Tasks
+
+### Task 1: Multi-Robot Coordination
+
+Implement a formation control system:
+
+```python
+# formation_control.py
+import rclpy
+from rclpy.node import Node
+from geometry_msgs.msg import Twist, PoseStamped
+from nav_msgs.msg import Odometry
+import numpy as np
+from typing import Dict, List
+
+class FormationController(Node):
+    def __init__(self, robot_id: int, num_robots: int):
+        super().__init__(f'formation_controller_{robot_id}')
+
+        self.robot_id = robot_id
+        self.num_robots = num_robots
+
+        # Formation offset from leader
+        self.formation_offset = self.get_formation_offset()
+
+        # Other robot poses
+        self.robot_poses: Dict[int, np.ndarray] = {}
+
+        # Subscribers for all robots
+        for i in range(num_robots):
+            self.create_subscription(
+                Odometry,
+                f'/robot_{i}/odom',
+                lambda msg, id=i: self.odom_callback(msg, id),
+                10
+            )
+
+        # Command publisher
+        self.cmd_pub = self.create_publisher(
+            Twist,
+            f'/robot_{self.robot_id}/cmd_vel',
+            10
+        )
+
+        # Control timer
+        self.timer = self.create_timer(0.1, self.control_loop)
+
+        # Control gains
+        self.k_pos = 1.0
+        self.k_vel = 0.5
+
+    def get_formation_offset(self) -> np.ndarray:
+        """Get this robot's offset in formation"""
+        # Line formation
+        spacing = 1.5
+        return np.array([0.0, -self.robot_id * spacing, 0.0])
+
+    def odom_callback(self, msg: Odometry, robot_id: int):
+        """Store robot pose"""
+        pos = msg.pose.pose.position
+        self.robot_poses[robot_id] = np.array([pos.x, pos.y, pos.z])
+
+    def control_loop(self):
+        """Formation control loop"""
+        if 0 not in self.robot_poses or self.robot_id not in self.robot_poses:
+            return
+
+        # Leader pose
+        leader_pose = self.robot_poses[0]
+
+        # Desired pose (leader + offset)
+        desired_pose = leader_pose + self.formation_offset
+
+        # Current pose
+        current_pose = self.robot_poses[self.robot_id]
+
+        # Position error
+        error = desired_pose - current_pose
+
+        # Compute control
+        cmd = Twist()
+        cmd.linear.x = self.k_pos * error[0]
+        cmd.linear.y = self.k_pos * error[1]
+
+        # Publish command
+        self.cmd_pub.publish(cmd)
+
+class ConsensusController(Node):
+    """Distributed consensus for multi-robot coordination"""
+
+    def __init__(self, robot_id: int, neighbors: List[int]):
+        super().__init__(f'consensus_{robot_id}')
+
+        self.robot_id = robot_id
+        self.neighbors = neighbors
+
+        # State (e.g., estimated target position)
+        self.state = np.random.randn(2)
+
+        # Neighbor states
+        self.neighbor_states: Dict[int, np.ndarray] = {}
+
+        # Subscribe to neighbors
+        for n in neighbors:
+            self.create_subscription(
+                PoseStamped,
+                f'/robot_{n}/state',
+                lambda msg, id=n: self.neighbor_callback(msg, id),
+                10
+            )
+
+        # Publish own state
+        self.state_pub = self.create_publisher(
+            PoseStamped,
+            f'/robot_{self.robot_id}/state',
+            10
+        )
+
+        # Consensus parameters
+        self.epsilon = 0.1
+        self.timer = self.create_timer(0.1, self.consensus_step)
+
+    def neighbor_callback(self, msg: PoseStamped, neighbor_id: int):
+        """Receive neighbor state"""
+        self.neighbor_states[neighbor_id] = np.array([
+            msg.pose.position.x,
+            msg.pose.position.y
+        ])
+
+    def consensus_step(self):
+        """Execute one consensus iteration"""
+        if len(self.neighbor_states) < len(self.neighbors):
+            return
+
+        # Average consensus update
+        update = np.zeros(2)
+        for n in self.neighbors:
+            if n in self.neighbor_states:
+                update += self.neighbor_states[n] - self.state
+
+        self.state += self.epsilon * update
+
+        # Publish updated state
+        msg = PoseStamped()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.pose.position.x = self.state[0]
+        msg.pose.position.y = self.state[1]
+        self.state_pub.publish(msg)
+```
+
+### Task 2: Cloud Robotics Interface
+
+Create a cloud-connected robot system:
+
+```python
+# cloud_interface.py
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+import json
+import asyncio
+import aiohttp
+from typing import Dict, Any
+
+class CloudInterface(Node):
+    def __init__(self):
+        super().__init__('cloud_interface')
+
+        # Configuration
+        self.declare_parameter('cloud_endpoint', 'https://api.robotcloud.example.com')
+        self.declare_parameter('robot_id', 'robot_001')
+
+        self.endpoint = self.get_parameter('cloud_endpoint').value
+        self.robot_id = self.get_parameter('robot_id').value
+
+        # Local subscriptions to forward to cloud
+        self.create_subscription(
+            String,
+            'robot_status',
+            self.status_callback,
+            10
+        )
+
+        # Cloud command subscription
+        self.cmd_pub = self.create_publisher(String, 'cloud_commands', 10)
+
+        # Async event loop
+        self.loop = asyncio.new_event_loop()
+
+        # Periodic cloud sync
+        self.timer = self.create_timer(1.0, self.sync_with_cloud)
+
+        # Data buffer
+        self.status_buffer = []
+
+    def status_callback(self, msg: String):
+        """Buffer status messages for cloud sync"""
+        self.status_buffer.append({
+            'timestamp': self.get_clock().now().nanoseconds,
+            'data': msg.data
+        })
+
+    def sync_with_cloud(self):
+        """Sync data with cloud"""
+        self.loop.run_until_complete(self._async_sync())
+
+    async def _async_sync(self):
+        """Async cloud synchronization"""
+        async with aiohttp.ClientSession() as session:
+            # Upload buffered data
+            if self.status_buffer:
+                await self._upload_data(session)
+
+            # Check for commands
+            await self._check_commands(session)
+
+    async def _upload_data(self, session: aiohttp.ClientSession):
+        """Upload buffered data to cloud"""
+        try:
+            payload = {
+                'robot_id': self.robot_id,
+                'data': self.status_buffer
+            }
+
+            async with session.post(
+                f'{self.endpoint}/data',
+                json=payload
+            ) as response:
+                if response.status == 200:
+                    self.status_buffer.clear()
+                    self.get_logger().debug('Data uploaded successfully')
+                else:
+                    self.get_logger().warn(f'Upload failed: {response.status}')
+
+        except Exception as e:
+            self.get_logger().error(f'Cloud upload error: {e}')
+
+    async def _check_commands(self, session: aiohttp.ClientSession):
+        """Check for pending commands from cloud"""
+        try:
+            async with session.get(
+                f'{self.endpoint}/commands/{self.robot_id}'
+            ) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    for command in data.get('commands', []):
+                        self._execute_command(command)
+
+        except Exception as e:
+            self.get_logger().error(f'Cloud command check error: {e}')
+
+    def _execute_command(self, command: Dict[str, Any]):
+        """Execute cloud command locally"""
+        msg = String()
+        msg.data = json.dumps(command)
+        self.cmd_pub.publish(msg)
+
+class FleetManager(Node):
+    """Fleet management for multiple robots"""
+
+    def __init__(self):
+        super().__init__('fleet_manager')
+
+        self.robots: Dict[str, Dict[str, Any]] = {}
+
+        # Status aggregation
+        self.status_sub = self.create_subscription(
+            String,
+            '/fleet/status',
+            self.status_callback,
+            10
+        )
+
+        # Task assignment publisher
+        self.task_pub = self.create_publisher(
+            String,
+            '/fleet/tasks',
+            10
+        )
+
+        # Task queue
+        self.task_queue = []
+
+        # Assignment timer
+        self.timer = self.create_timer(1.0, self.assign_tasks)
+
+    def status_callback(self, msg: String):
+        """Update robot status"""
+        data = json.loads(msg.data)
+        robot_id = data.get('robot_id')
+        if robot_id:
+            self.robots[robot_id] = {
+                'status': data.get('status', 'unknown'),
+                'position': data.get('position'),
+                'battery': data.get('battery', 100),
+                'current_task': data.get('current_task')
+            }
+
+    def assign_tasks(self):
+        """Assign pending tasks to available robots"""
+        if not self.task_queue:
+            return
+
+        # Find available robots
+        available = [
+            (rid, info) for rid, info in self.robots.items()
+            if info['status'] == 'idle' and info['battery'] > 20
+        ]
+
+        if not available:
+            return
+
+        # Simple greedy assignment
+        task = self.task_queue.pop(0)
+
+        # Select best robot (closest to task location)
+        if task.get('location'):
+            task_loc = np.array(task['location'])
+            best_robot = min(
+                available,
+                key=lambda r: np.linalg.norm(
+                    np.array(r[1]['position'] or [0, 0]) - task_loc
+                )
+            )[0]
+        else:
+            best_robot = available[0][0]
+
+        # Assign task
+        assignment = {
+            'robot_id': best_robot,
+            'task': task
+        }
+
+        msg = String()
+        msg.data = json.dumps(assignment)
+        self.task_pub.publish(msg)
+
+        self.get_logger().info(f'Assigned task to {best_robot}')
+
+    def add_task(self, task: Dict[str, Any]):
+        """Add task to queue"""
+        self.task_queue.append(task)
+```
+
+### Task 3: Edge Computing Integration
+
+Implement edge processing for real-time inference:
+
+```python
+# edge_inference.py
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import Image
+from std_msgs.msg import String
+from cv_bridge import CvBridge
+import numpy as np
+import json
+
+# Simulated edge inference (replace with actual model)
+class EdgeInferenceNode(Node):
+    def __init__(self):
+        super().__init__('edge_inference')
+
+        self.bridge = CvBridge()
+
+        # Image subscription
+        self.image_sub = self.create_subscription(
+            Image,
+            'camera/image_raw',
+            self.image_callback,
+            10
+        )
+
+        # Detection publisher
+        self.detection_pub = self.create_publisher(
+            String,
+            'detections',
+            10
+        )
+
+        # Load model (simulated)
+        self.model = self._load_model()
+
+        # Performance tracking
+        self.inference_times = []
+
+    def _load_model(self):
+        """Load inference model"""
+        # In practice, load TensorRT, ONNX, or other optimized model
+        self.get_logger().info('Model loaded for edge inference')
+        return None
+
+    def image_callback(self, msg: Image):
+        """Process image for object detection"""
+        import time
+        start_time = time.time()
+
+        # Convert ROS image to OpenCV
+        cv_image = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
+
+        # Run inference (simulated)
+        detections = self._run_inference(cv_image)
+
+        # Track inference time
+        inference_time = time.time() - start_time
+        self.inference_times.append(inference_time)
+
+        # Publish detections
+        result = {
+            'timestamp': msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9,
+            'detections': detections,
+            'inference_time_ms': inference_time * 1000
+        }
+
+        detection_msg = String()
+        detection_msg.data = json.dumps(result)
+        self.detection_pub.publish(detection_msg)
+
+    def _run_inference(self, image: np.ndarray):
+        """Run object detection inference"""
+        # Simulated detections
+        # In practice, use TensorRT/ONNX/TFLite
+        return [
+            {
+                'class': 'object',
+                'confidence': 0.95,
+                'bbox': [100, 100, 200, 200]
+            }
+        ]
+```
+
+## Code Examples
+
+### Distributed SLAM
+
+```python
+# distributed_slam.py
+import numpy as np
+from typing import Dict, List, Tuple
+
+class DistributedSLAM:
+    """Distributed SLAM for multi-robot mapping"""
+
+    def __init__(self, robot_id: int):
+        self.robot_id = robot_id
+
+        # Local map
+        self.local_map = {}
+
+        # Shared landmarks
+        self.shared_landmarks: Dict[str, np.ndarray] = {}
+
+        # Pose graph
+        self.poses = [np.eye(4)]  # List of poses
+        self.constraints = []  # (i, j, T_ij)
+
+    def add_observation(self, landmark_id: str, observation: np.ndarray):
+        """Add landmark observation"""
+        self.local_map[landmark_id] = observation
+
+    def merge_map(self, other_robot_id: int, other_map: Dict[str, np.ndarray],
+                  relative_transform: np.ndarray):
+        """Merge map from another robot"""
+        for lid, obs in other_map.items():
+            # Transform observation to local frame
+            transformed = relative_transform @ np.append(obs, 1)
+
+            if lid in self.shared_landmarks:
+                # Average with existing observation
+                self.shared_landmarks[lid] = (
+                    self.shared_landmarks[lid] + transformed[:3]
+                ) / 2
+            else:
+                self.shared_landmarks[lid] = transformed[:3]
+
+    def optimize_pose_graph(self):
+        """Optimize pose graph using least squares"""
+        # Simplified - in practice use g2o or GTSAM
+        for constraint in self.constraints:
+            i, j, T_ij = constraint
+            # Apply constraint to refine poses
+            pass
+
+        return self.poses
+```
+
+## Summary
+
+In this chapter, we covered:
+
+- Multi-robot coordination and formation control
+- Consensus algorithms for distributed agreement
+- Cloud robotics architecture and integration
+- Fleet management and task allocation
+- Edge computing for real-time processing
+
+## Additional Resources
+
+- [Distributed Robotics (MIT Press)](https://mitpress.mit.edu/books/distributed-robotics)
+- [AWS RoboMaker](https://aws.amazon.com/robomaker/)
+- [Open-RMF (Robot Middleware Framework)](https://osrf.github.io/ros2multirobotbook/)
+
+</ChatSelection>
+
+## Chapter Quiz
+
+<ChapterQuiz chapterId="week-12-advanced" />

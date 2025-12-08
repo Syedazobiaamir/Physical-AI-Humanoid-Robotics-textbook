@@ -1,0 +1,585 @@
+---
+sidebar_position: 4
+title: "Week 13: Final Project"
+description: "Capstone project integrating all concepts into a complete robot application"
+---
+
+import ChapterQuiz from '@site/src/components/ChapterQuiz';
+import ChatSelection from '@site/src/components/ChatSelection';
+
+# Week 13: Final Project
+
+<ChatSelection chapterId="week-13-final-project">
+
+## Learning Objectives
+
+By the end of this project, you will be able to:
+
+1. Design a complete robot system from requirements
+2. Implement perception, planning, and control pipelines
+3. Create a robust behavior system for autonomous operation
+4. Test and validate robot performance
+5. Document and present your solution
+
+## Project Overview
+
+The final project brings together all concepts from the course into a complete, integrated robot application. You will build an **Autonomous Mobile Manipulator** capable of navigating an environment, detecting objects, and performing pick-and-place operations.
+
+### Project Requirements
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                    Autonomous Pick-and-Place                     │
+├──────────────────────────────────────────────────────────────────┤
+│ Requirements:                                                    │
+│ 1. Navigate to specified locations                               │
+│ 2. Detect and localize target objects                           │
+│ 3. Plan and execute grasp motions                                │
+│ 4. Transport objects to goal locations                          │
+│ 5. Handle errors and recover gracefully                         │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+## System Architecture
+
+### High-Level Design
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      Mission Planner                             │
+│              (Task sequencing and monitoring)                    │
+├──────────────────────────────────────────────────────────────────┤
+│     ┌────────────┐ ┌────────────┐ ┌────────────┐                │
+│     │ Navigation │ │  Perception │ │ Manipulation │              │
+│     │  Subsystem │ │  Subsystem  │ │  Subsystem   │              │
+│     └──────┬─────┘ └──────┬──────┘ └──────┬───────┘              │
+│            │              │               │                      │
+│     ┌──────┴──────┐ ┌─────┴──────┐ ┌─────┴───────┐              │
+│     │ Nav2 Stack  │ │  YOLOv8    │ │  MoveIt 2   │              │
+│     │ SLAM/AMCL   │ │  PointCloud│ │  Grasp Gen  │              │
+│     └─────────────┘ └────────────┘ └─────────────┘              │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Implementation Guide
+
+### Phase 1: Project Setup
+
+Create the project structure and launch configuration:
+
+```python
+# project_launch.py
+from launch import LaunchDescription
+from launch_ros.actions import Node
+from launch.actions import IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+import os
+from ament_index_python.packages import get_package_share_directory
+
+def generate_launch_description():
+    pkg_share = get_package_share_directory('final_project')
+
+    # Simulation launch
+    simulation = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            os.path.join(pkg_share, 'launch', 'simulation.launch.py')
+        ])
+    )
+
+    # Navigation launch
+    navigation = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            os.path.join(pkg_share, 'launch', 'navigation.launch.py')
+        ])
+    )
+
+    # Perception launch
+    perception = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            os.path.join(pkg_share, 'launch', 'perception.launch.py')
+        ])
+    )
+
+    # Manipulation launch
+    manipulation = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            os.path.join(pkg_share, 'launch', 'manipulation.launch.py')
+        ])
+    )
+
+    # Mission controller
+    mission_controller = Node(
+        package='final_project',
+        executable='mission_controller',
+        name='mission_controller',
+        output='screen',
+    )
+
+    return LaunchDescription([
+        simulation,
+        navigation,
+        perception,
+        manipulation,
+        mission_controller,
+    ])
+```
+
+### Phase 2: Mission Controller
+
+Implement the high-level task coordinator:
+
+```python
+# mission_controller.py
+import rclpy
+from rclpy.node import Node
+from rclpy.action import ActionClient
+from geometry_msgs.msg import PoseStamped
+from std_msgs.msg import String
+from nav2_msgs.action import NavigateToPose
+from moveit_msgs.action import MoveGroup
+import json
+from enum import Enum, auto
+from typing import List, Dict, Any
+
+class MissionState(Enum):
+    IDLE = auto()
+    NAVIGATING_TO_PICK = auto()
+    DETECTING_OBJECT = auto()
+    PICKING = auto()
+    NAVIGATING_TO_PLACE = auto()
+    PLACING = auto()
+    COMPLETED = auto()
+    ERROR = auto()
+
+class MissionController(Node):
+    def __init__(self):
+        super().__init__('mission_controller')
+
+        # Action clients
+        self.nav_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
+        self.move_client = ActionClient(self, MoveGroup, 'move_action')
+
+        # State machine
+        self.state = MissionState.IDLE
+        self.current_task = None
+
+        # Task queue
+        self.task_queue: List[Dict[str, Any]] = []
+
+        # Subscriptions
+        self.detection_sub = self.create_subscription(
+            String, 'detections', self.detection_callback, 10
+        )
+
+        # Publishers
+        self.status_pub = self.create_publisher(String, 'mission_status', 10)
+
+        # Timer for state machine
+        self.timer = self.create_timer(0.1, self.execute_state_machine)
+
+        # Load predefined pick/place locations
+        self.pick_locations = self._load_locations('pick')
+        self.place_locations = self._load_locations('place')
+
+        self.get_logger().info('Mission Controller initialized')
+
+    def _load_locations(self, location_type: str) -> List[PoseStamped]:
+        """Load predefined locations from config"""
+        # Example locations
+        locations = []
+        poses = [
+            [1.0, 2.0, 0.0],
+            [3.0, 1.0, 0.0],
+            [2.0, 3.0, 0.0],
+        ]
+        for pose in poses:
+            p = PoseStamped()
+            p.header.frame_id = 'map'
+            p.pose.position.x = pose[0]
+            p.pose.position.y = pose[1]
+            p.pose.orientation.w = 1.0
+            locations.append(p)
+        return locations
+
+    def add_task(self, pick_index: int, place_index: int):
+        """Add pick-and-place task to queue"""
+        task = {
+            'pick_location': self.pick_locations[pick_index],
+            'place_location': self.place_locations[place_index],
+            'object_class': 'target_object',
+        }
+        self.task_queue.append(task)
+
+    def execute_state_machine(self):
+        """Execute current state"""
+        if self.state == MissionState.IDLE:
+            self._handle_idle()
+        elif self.state == MissionState.NAVIGATING_TO_PICK:
+            pass  # Waiting for navigation result
+        elif self.state == MissionState.DETECTING_OBJECT:
+            self._handle_detection()
+        elif self.state == MissionState.PICKING:
+            pass  # Waiting for pick action
+        elif self.state == MissionState.NAVIGATING_TO_PLACE:
+            pass  # Waiting for navigation
+        elif self.state == MissionState.PLACING:
+            pass  # Waiting for place action
+        elif self.state == MissionState.COMPLETED:
+            self._handle_completed()
+        elif self.state == MissionState.ERROR:
+            self._handle_error()
+
+        self._publish_status()
+
+    def _handle_idle(self):
+        """Handle idle state"""
+        if self.task_queue:
+            self.current_task = self.task_queue.pop(0)
+            self._transition_to(MissionState.NAVIGATING_TO_PICK)
+            self._navigate_to(self.current_task['pick_location'])
+
+    def _handle_detection(self):
+        """Handle object detection"""
+        if hasattr(self, 'detected_object') and self.detected_object:
+            self._transition_to(MissionState.PICKING)
+            self._execute_pick(self.detected_object)
+
+    def _handle_completed(self):
+        """Handle task completion"""
+        self.get_logger().info('Task completed successfully')
+        self.current_task = None
+        self._transition_to(MissionState.IDLE)
+
+    def _handle_error(self):
+        """Handle error recovery"""
+        self.get_logger().warn('Attempting error recovery')
+        # Implement recovery logic
+        self._transition_to(MissionState.IDLE)
+
+    def _navigate_to(self, goal: PoseStamped):
+        """Send navigation goal"""
+        goal_msg = NavigateToPose.Goal()
+        goal_msg.pose = goal
+
+        self.nav_client.wait_for_server()
+        future = self.nav_client.send_goal_async(goal_msg)
+        future.add_done_callback(self._navigation_response_callback)
+
+    def _navigation_response_callback(self, future):
+        """Handle navigation goal response"""
+        goal_handle = future.result()
+        if not goal_handle.accepted:
+            self._transition_to(MissionState.ERROR)
+            return
+
+        result_future = goal_handle.get_result_async()
+        result_future.add_done_callback(self._navigation_result_callback)
+
+    def _navigation_result_callback(self, future):
+        """Handle navigation result"""
+        result = future.result().result
+        if self.state == MissionState.NAVIGATING_TO_PICK:
+            self._transition_to(MissionState.DETECTING_OBJECT)
+        elif self.state == MissionState.NAVIGATING_TO_PLACE:
+            self._transition_to(MissionState.PLACING)
+            self._execute_place()
+
+    def detection_callback(self, msg: String):
+        """Handle object detection result"""
+        data = json.loads(msg.data)
+        detections = data.get('detections', [])
+
+        for det in detections:
+            if det.get('class') == self.current_task.get('object_class'):
+                self.detected_object = det
+                break
+
+    def _execute_pick(self, detection: Dict):
+        """Execute pick operation"""
+        # Implement grasp planning and execution
+        self.get_logger().info('Executing pick operation')
+        # After successful pick:
+        self._transition_to(MissionState.NAVIGATING_TO_PLACE)
+        self._navigate_to(self.current_task['place_location'])
+
+    def _execute_place(self):
+        """Execute place operation"""
+        # Implement place motion
+        self.get_logger().info('Executing place operation')
+        # After successful place:
+        self._transition_to(MissionState.COMPLETED)
+
+    def _transition_to(self, new_state: MissionState):
+        """Transition to new state"""
+        self.get_logger().info(f'State: {self.state.name} -> {new_state.name}')
+        self.state = new_state
+
+    def _publish_status(self):
+        """Publish current mission status"""
+        status = {
+            'state': self.state.name,
+            'current_task': bool(self.current_task),
+            'queue_length': len(self.task_queue),
+        }
+        msg = String()
+        msg.data = json.dumps(status)
+        self.status_pub.publish(msg)
+
+def main(args=None):
+    rclpy.init(args=args)
+    controller = MissionController()
+
+    # Add example tasks
+    controller.add_task(0, 0)
+    controller.add_task(1, 1)
+
+    rclpy.spin(controller)
+    controller.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+### Phase 3: Object Detection Integration
+
+```python
+# object_detector.py
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import Image, PointCloud2
+from std_msgs.msg import String
+from cv_bridge import CvBridge
+import numpy as np
+import json
+
+class ObjectDetector(Node):
+    def __init__(self):
+        super().__init__('object_detector')
+
+        self.bridge = CvBridge()
+
+        # Subscriptions
+        self.image_sub = self.create_subscription(
+            Image, 'camera/color/image_raw', self.image_callback, 10
+        )
+        self.depth_sub = self.create_subscription(
+            Image, 'camera/depth/image_raw', self.depth_callback, 10
+        )
+
+        # Publisher
+        self.detection_pub = self.create_publisher(
+            String, 'detections', 10
+        )
+
+        # Detection state
+        self.current_depth = None
+        self.detection_enabled = True
+
+    def depth_callback(self, msg: Image):
+        """Store current depth image"""
+        self.current_depth = self.bridge.imgmsg_to_cv2(msg)
+
+    def image_callback(self, msg: Image):
+        """Process image for object detection"""
+        if not self.detection_enabled:
+            return
+
+        cv_image = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
+
+        # Run detection (placeholder - use actual model)
+        detections = self._detect_objects(cv_image)
+
+        # Add 3D positions if depth available
+        if self.current_depth is not None:
+            detections = self._add_3d_positions(detections)
+
+        # Publish results
+        result = {
+            'timestamp': msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9,
+            'detections': detections,
+        }
+
+        detection_msg = String()
+        detection_msg.data = json.dumps(result)
+        self.detection_pub.publish(detection_msg)
+
+    def _detect_objects(self, image: np.ndarray):
+        """Run object detection"""
+        # Placeholder - implement with YOLOv8, etc.
+        return [
+            {
+                'class': 'target_object',
+                'confidence': 0.92,
+                'bbox': [150, 100, 50, 60],  # x, y, w, h
+            }
+        ]
+
+    def _add_3d_positions(self, detections):
+        """Add 3D positions using depth"""
+        for det in detections:
+            bbox = det['bbox']
+            cx = bbox[0] + bbox[2] // 2
+            cy = bbox[1] + bbox[3] // 2
+
+            if 0 <= cy < self.current_depth.shape[0] and \
+               0 <= cx < self.current_depth.shape[1]:
+                depth = self.current_depth[cy, cx]
+                # Convert to 3D (simplified - use camera intrinsics)
+                det['position_3d'] = {
+                    'x': (cx - 320) * depth / 500,
+                    'y': (cy - 240) * depth / 500,
+                    'z': depth / 1000,
+                }
+
+        return detections
+```
+
+### Phase 4: Grasp Planning
+
+```python
+# grasp_planner.py
+import numpy as np
+from typing import List, Dict, Optional
+from geometry_msgs.msg import Pose, PoseStamped
+
+class GraspPlanner:
+    def __init__(self):
+        # Gripper parameters
+        self.gripper_width = 0.08  # meters
+        self.approach_distance = 0.1
+
+    def plan_grasp(self, object_pose: Dict, object_shape: str = 'box') -> List[Pose]:
+        """Plan grasp poses for an object"""
+        if object_shape == 'box':
+            return self._plan_box_grasp(object_pose)
+        elif object_shape == 'cylinder':
+            return self._plan_cylinder_grasp(object_pose)
+        else:
+            return self._plan_generic_grasp(object_pose)
+
+    def _plan_box_grasp(self, object_pose: Dict) -> List[Pose]:
+        """Plan grasps for box-shaped objects"""
+        grasps = []
+
+        # Top-down grasp
+        top_grasp = Pose()
+        top_grasp.position.x = object_pose['x']
+        top_grasp.position.y = object_pose['y']
+        top_grasp.position.z = object_pose['z'] + self.approach_distance
+        top_grasp.orientation.x = 1.0
+        top_grasp.orientation.w = 0.0  # Point down
+        grasps.append(top_grasp)
+
+        # Side grasp
+        side_grasp = Pose()
+        side_grasp.position.x = object_pose['x'] + self.approach_distance
+        side_grasp.position.y = object_pose['y']
+        side_grasp.position.z = object_pose['z']
+        side_grasp.orientation.y = 0.707
+        side_grasp.orientation.w = 0.707  # Point sideways
+        grasps.append(side_grasp)
+
+        return grasps
+
+    def _plan_cylinder_grasp(self, object_pose: Dict) -> List[Pose]:
+        """Plan grasps for cylindrical objects"""
+        grasps = []
+
+        # Generate grasps around the cylinder
+        for angle in np.linspace(0, np.pi, 4):
+            grasp = Pose()
+            grasp.position.x = object_pose['x'] + self.approach_distance * np.cos(angle)
+            grasp.position.y = object_pose['y'] + self.approach_distance * np.sin(angle)
+            grasp.position.z = object_pose['z']
+
+            # Orientation pointing toward object
+            grasp.orientation.z = np.sin(angle / 2)
+            grasp.orientation.w = np.cos(angle / 2)
+            grasps.append(grasp)
+
+        return grasps
+
+    def _plan_generic_grasp(self, object_pose: Dict) -> List[Pose]:
+        """Plan generic top-down grasp"""
+        grasp = Pose()
+        grasp.position.x = object_pose['x']
+        grasp.position.y = object_pose['y']
+        grasp.position.z = object_pose['z'] + 0.15
+        grasp.orientation.x = 1.0
+        grasp.orientation.w = 0.0
+        return [grasp]
+
+    def score_grasps(self, grasps: List[Pose], obstacles: List) -> List[float]:
+        """Score grasps based on reachability and collision"""
+        scores = []
+        for grasp in grasps:
+            score = 1.0
+
+            # Penalize based on height (prefer top grasps)
+            score *= min(1.0, grasp.position.z / 0.5)
+
+            # Check for collision proximity
+            for obs in obstacles:
+                dist = self._distance_to_obstacle(grasp, obs)
+                if dist < 0.05:
+                    score *= 0.1  # Heavy penalty
+
+            scores.append(score)
+        return scores
+
+    def _distance_to_obstacle(self, grasp: Pose, obstacle) -> float:
+        """Compute distance from grasp to obstacle"""
+        # Simplified distance calculation
+        return np.sqrt(
+            (grasp.position.x - obstacle['x'])**2 +
+            (grasp.position.y - obstacle['y'])**2 +
+            (grasp.position.z - obstacle['z'])**2
+        )
+```
+
+## Evaluation Criteria
+
+### Grading Rubric
+
+| Category | Weight | Criteria |
+|----------|--------|----------|
+| System Design | 20% | Architecture, modularity, documentation |
+| Navigation | 20% | Path planning, localization, obstacle avoidance |
+| Perception | 20% | Object detection, pose estimation accuracy |
+| Manipulation | 20% | Grasp planning, motion execution, success rate |
+| Integration | 20% | State machine, error handling, robustness |
+
+### Deliverables
+
+1. **Code Repository**: Well-organized ROS2 packages
+2. **Documentation**: README, architecture diagram, API docs
+3. **Demo Video**: 3-5 minute demonstration
+4. **Report**: 5-10 page technical report
+
+## Summary
+
+In this final project, you will:
+
+- Design and implement a complete robot system
+- Integrate navigation, perception, and manipulation
+- Build a robust behavior system
+- Demonstrate autonomous pick-and-place operation
+- Document and present your solution
+
+## Additional Resources
+
+- [MoveIt 2 Pick and Place Tutorial](https://moveit.picknik.ai/main/doc/examples/pick_and_place/pick_and_place_tutorial.html)
+- [Nav2 Documentation](https://navigation.ros.org/)
+- [ROS2 Best Practices](https://docs.ros.org/en/humble/Contributing/Developer-Guide.html)
+
+</ChatSelection>
+
+## Project Submission
+
+Complete your final project and submit via the course portal. Include:
+- GitHub repository link
+- Demo video link
+- Technical report (PDF)
+
+<ChapterQuiz chapterId="week-13-final-project" />

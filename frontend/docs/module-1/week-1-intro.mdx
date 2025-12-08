@@ -1,0 +1,218 @@
+---
+sidebar_position: 1
+title: "Week 1: Introduction to ROS2"
+description: "Learn the fundamentals of ROS2 architecture and get your development environment set up"
+---
+
+import ChapterQuiz from '@site/src/components/ChapterQuiz';
+import ChatSelection from '@site/src/components/ChatSelection';
+
+# Week 1: Introduction to ROS2
+
+<ChatSelection chapterId="week-1-intro">
+
+## Learning Objectives
+
+By the end of this chapter, you will be able to:
+
+1. Understand the core architecture and philosophy of ROS2
+2. Set up a complete ROS2 development environment
+3. Create and run your first ROS2 node
+4. Understand the differences between ROS1 and ROS2
+5. Navigate the ROS2 ecosystem and documentation
+
+## Introduction
+
+Robot Operating System 2 (ROS2) is a flexible framework for writing robot software. Despite its name, ROS2 is not an operating system—it's a middleware that provides tools, libraries, and conventions for building robot applications.
+
+### Why ROS2?
+
+ROS2 addresses many limitations of its predecessor, ROS1:
+
+- **Real-time capabilities**: Support for real-time computing
+- **Multi-platform support**: Native support for Linux, Windows, and macOS
+- **Security**: Built-in security features using DDS
+- **Scalability**: Better support for multi-robot systems
+- **Production-ready**: Designed for commercial and industrial use
+
+## Theory: ROS2 Architecture
+
+### DDS (Data Distribution Service)
+
+ROS2 is built on top of DDS, an industry-standard middleware for real-time systems. DDS provides:
+
+```
+┌─────────────────────────────────────────────────┐
+│                 ROS2 Application                │
+├─────────────────────────────────────────────────┤
+│                 RCL (ROS Client Library)        │
+├─────────────────────────────────────────────────┤
+│                 RMW (ROS Middleware)            │
+├─────────────────────────────────────────────────┤
+│                 DDS Implementation              │
+└─────────────────────────────────────────────────┘
+```
+
+### Core Concepts
+
+1. **Nodes**: Modular units of computation
+2. **Topics**: Named buses for data streaming
+3. **Services**: Request-response communication
+4. **Actions**: Long-running tasks with feedback
+5. **Parameters**: Configuration values
+
+## Lab Tasks
+
+### Task 1: Install ROS2 Humble
+
+Follow these steps to install ROS2 Humble on Ubuntu 22.04:
+
+```bash
+# Set locale
+sudo apt update && sudo apt install locales
+sudo locale-gen en_US en_US.UTF-8
+sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
+
+# Setup sources
+sudo apt install software-properties-common
+sudo add-apt-repository universe
+sudo apt update && sudo apt install curl -y
+sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
+
+# Add repository
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
+
+# Install ROS2
+sudo apt update
+sudo apt install ros-humble-desktop
+```
+
+### Task 2: Create Your First Node
+
+Create a simple Python node that publishes "Hello, World!":
+
+```python
+# hello_world_node.py
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+
+class HelloWorldPublisher(Node):
+    def __init__(self):
+        super().__init__('hello_world_publisher')
+        self.publisher_ = self.create_publisher(String, 'hello_topic', 10)
+        timer_period = 1.0  # seconds
+        self.timer = self.create_timer(timer_period, self.timer_callback)
+
+    def timer_callback(self):
+        msg = String()
+        msg.data = 'Hello, World!'
+        self.publisher_.publish(msg)
+        self.get_logger().info(f'Publishing: {msg.data}')
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = HelloWorldPublisher()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+### Task 3: Run and Verify
+
+```bash
+# Source ROS2
+source /opt/ros/humble/setup.bash
+
+# Run the node
+python3 hello_world_node.py
+
+# In another terminal, listen to the topic
+ros2 topic echo /hello_topic
+```
+
+## Code Examples
+
+### C++ Node Example
+
+```cpp
+#include "rclcpp/rclcpp.hpp"
+#include "std_msgs/msg/string.hpp"
+
+class HelloWorldPublisher : public rclcpp::Node
+{
+public:
+    HelloWorldPublisher() : Node("hello_world_publisher")
+    {
+        publisher_ = this->create_publisher<std_msgs::msg::String>("hello_topic", 10);
+        timer_ = this->create_wall_timer(
+            std::chrono::seconds(1),
+            std::bind(&HelloWorldPublisher::timer_callback, this));
+    }
+
+private:
+    void timer_callback()
+    {
+        auto message = std_msgs::msg::String();
+        message.data = "Hello, World!";
+        publisher_->publish(message);
+        RCLCPP_INFO(this->get_logger(), "Publishing: '%s'", message.data.c_str());
+    }
+
+    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_;
+    rclcpp::TimerBase::SharedPtr timer_;
+};
+
+int main(int argc, char * argv[])
+{
+    rclcpp::init(argc, argv);
+    rclcpp::spin(std::make_shared<HelloWorldPublisher>());
+    rclcpp::shutdown();
+    return 0;
+}
+```
+
+### CMakeLists.txt for C++ Node
+
+```cmake
+cmake_minimum_required(VERSION 3.8)
+project(hello_world_cpp)
+
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(std_msgs REQUIRED)
+
+add_executable(hello_world_node src/hello_world_node.cpp)
+ament_target_dependencies(hello_world_node rclcpp std_msgs)
+
+install(TARGETS
+    hello_world_node
+    DESTINATION lib/${PROJECT_NAME})
+
+ament_package()
+```
+
+## Summary
+
+In this chapter, we covered:
+
+- The evolution from ROS1 to ROS2 and its benefits
+- ROS2's architecture based on DDS middleware
+- Core concepts: nodes, topics, services, and actions
+- Setting up a ROS2 development environment
+- Creating and running your first ROS2 node in Python and C++
+
+## Additional Resources
+
+- [ROS2 Documentation](https://docs.ros.org/en/humble/)
+- [ROS2 Tutorials](https://docs.ros.org/en/humble/Tutorials.html)
+- [DDS Specification](https://www.omg.org/spec/DDS/)
+
+</ChatSelection>
+
+## Chapter Quiz
+
+<ChapterQuiz chapterId="week-1-intro" />

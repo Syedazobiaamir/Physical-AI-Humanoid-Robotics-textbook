@@ -1,0 +1,111 @@
+.card {
+  display: flex;
+  align-items: center;
+  padding: 1.5rem;
+  background: var(--ifm-background-surface-color);
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: 12px;
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+  cursor: pointer;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+  border-color: var(--ifm-color-primary);
+  text-decoration: none;
+  color: inherit;
+}
+
+.cardIcon {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  color: white;
+  margin-right: 1.25rem;
+  transition: transform 0.2s;
+}
+
+.card:hover .cardIcon {
+  transform: scale(1.1);
+}
+
+.cardContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.cardTitle {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+  color: var(--ifm-heading-color);
+}
+
+.cardDescription {
+  font-size: 0.95rem;
+  color: var(--ifm-color-emphasis-700);
+  margin: 0 0 0.5rem 0;
+  line-height: 1.5;
+}
+
+.cardWeeks {
+  display: inline-block;
+  font-size: 0.8rem;
+  color: var(--ifm-color-primary);
+  background: var(--ifm-color-primary-lightest);
+  padding: 0.25rem 0.75rem;
+  border-radius: 100px;
+  font-weight: 500;
+}
+
+[data-theme='dark'] .cardWeeks {
+  background: rgba(37, 194, 160, 0.15);
+}
+
+.cardArrow {
+  flex-shrink: 0;
+  color: var(--ifm-color-emphasis-400);
+  margin-left: 1rem;
+  transition: transform 0.2s, color 0.2s;
+}
+
+.card:hover .cardArrow {
+  transform: translateX(4px);
+  color: var(--ifm-color-primary);
+}
+
+/* Grid layout for multiple cards */
+.moduleGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 1.5rem;
+  padding: 2rem 0;
+}
+
+@media (max-width: 576px) {
+  .card {
+    flex-direction: column;
+    text-align: center;
+    padding: 1.5rem 1rem;
+  }
+
+  .cardIcon {
+    margin-right: 0;
+    margin-bottom: 1rem;
+  }
+
+  .cardArrow {
+    display: none;
+  }
+
+  .moduleGrid {
+    grid-template-columns: 1fr;
+  }
+}

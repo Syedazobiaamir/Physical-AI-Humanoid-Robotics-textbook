@@ -1,0 +1,124 @@
+/**
+ * Custom CSS for Physical AI & Humanoid Robotics Textbook
+ */
+
+:root {
+  --ifm-color-primary: #2e8555;
+  --ifm-color-primary-dark: #29784c;
+  --ifm-color-primary-darker: #277148;
+  --ifm-color-primary-darkest: #205d3b;
+  --ifm-color-primary-light: #33925d;
+  --ifm-color-primary-lighter: #359962;
+  --ifm-color-primary-lightest: #3cad6e;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #25c2a0;
+  --ifm-color-primary-dark: #21af90;
+  --ifm-color-primary-darker: #1fa588;
+  --ifm-color-primary-darkest: #1a8870;
+  --ifm-color-primary-light: #29d5b0;
+  --ifm-color-primary-lighter: #32d8b4;
+  --ifm-color-primary-lightest: #4fddbf;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+}
+
+/* Custom styles for quiz components */
+.quiz-container {
+  margin: 2rem 0;
+  padding: 1.5rem;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 8px;
+}
+
+.quiz-question {
+  margin-bottom: 1rem;
+  font-weight: 600;
+}
+
+.quiz-option {
+  padding: 0.75rem;
+  margin: 0.5rem 0;
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.quiz-option:hover {
+  background-color: var(--ifm-color-emphasis-100);
+}
+
+.quiz-option.selected {
+  background-color: var(--ifm-color-primary-lighter);
+  border-color: var(--ifm-color-primary);
+}
+
+/* Custom styles for chat widget */
+.chat-widget {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  width: 400px;
+  max-height: 600px;
+  background: var(--ifm-background-color);
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+}
+
+.chat-header {
+  padding: 1rem;
+  background: var(--ifm-color-primary);
+  color: white;
+  border-radius: 12px 12px 0 0;
+  font-weight: 600;
+}
+
+.chat-messages {
+  height: 400px;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+.chat-input {
+  padding: 1rem;
+  border-top: 1px solid var(--ifm-color-emphasis-200);
+}
+
+/* Custom styles for personalization button */
+.personalize-button {
+  margin: 1rem 0;
+  padding: 0.75rem 1.5rem;
+  background: var(--ifm-color-primary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: opacity 0.2s;
+}
+
+.personalize-button:hover {
+  opacity: 0.9;
+}
+
+/* Custom styles for Urdu translation */
+.urdu-content {
+  direction: rtl;
+  text-align: right;
+  font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', serif;
+}
+
+/* Code examples styling */
+.sdk-example {
+  margin: 1.5rem 0;
+}
+
+.sdk-example-header {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}

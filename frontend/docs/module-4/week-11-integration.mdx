@@ -1,0 +1,572 @@
+---
+sidebar_position: 2
+title: "Week 11: System Integration"
+description: "Integrating perception, planning, and control into a complete robot system"
+---
+
+import ChapterQuiz from '@site/src/components/ChapterQuiz';
+import ChatSelection from '@site/src/components/ChatSelection';
+
+# Week 11: System Integration
+
+<ChatSelection chapterId="week-11-integration">
+
+## Learning Objectives
+
+By the end of this chapter, you will be able to:
+
+1. Design a complete robot software architecture
+2. Integrate perception, planning, and control subsystems
+3. Implement behavior state machines
+4. Handle system-level error recovery
+5. Create launch configurations for complex systems
+
+## Introduction
+
+A complete robot system requires seamless integration of perception, planning, and control. This chapter covers the principles and practices for building robust, integrated robot systems.
+
+### System Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                     High-Level Planning                          │
+│              (Task Planning, Mission Control)                    │
+├──────────────────────────────────────────────────────────────────┤
+│         ┌─────────────┬─────────────┬─────────────┐             │
+│         │ Perception  │   Planning  │   Control   │             │
+│         │   Module    │   Module    │   Module    │             │
+│         └──────┬──────┴──────┬──────┴──────┬──────┘             │
+│                │             │             │                     │
+├────────────────┴─────────────┴─────────────┴─────────────────────┤
+│                      Hardware Interface                          │
+│              (Sensors, Actuators, Communication)                 │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+## Theory: Integration Patterns
+
+### ROS2 Node Composition
+
+Nodes can be composed for efficient execution:
+
+```python
+# composed_system.py
+from rclpy.node import Node
+from rclpy.executors import MultiThreadedExecutor
+import rclpy
+
+class IntegratedSystem:
+    def __init__(self):
+        rclpy.init()
+
+        # Create executor
+        self.executor = MultiThreadedExecutor()
+
+        # Create and add nodes
+        self.perception_node = PerceptionNode()
+        self.planning_node = PlanningNode()
+        self.control_node = ControlNode()
+
+        self.executor.add_node(self.perception_node)
+        self.executor.add_node(self.planning_node)
+        self.executor.add_node(self.control_node)
+
+    def run(self):
+        try:
+            self.executor.spin()
+        finally:
+            self.executor.shutdown()
+            rclpy.shutdown()
+```
+
+### Lifecycle Management
+
+ROS2 lifecycle nodes provide managed state transitions:
+
+```
+┌────────────────────────────────────────────────────────┐
+│  Unconfigured ─► Configuring ─► Inactive              │
+│       ▲                             │                  │
+│       │                             ▼                  │
+│  Finalized ◄── CleaningUp ◄── Activating ─► Active   │
+│                     ▲              │         │         │
+│                     └── Deactivating ◄───────┘         │
+└────────────────────────────────────────────────────────┘
+```
+
+## Lab Tasks
+
+### Task 1: Create a Behavior State Machine
+
+Implement a behavior state machine using SMACH:
+
+```python
+# behavior_sm.py
+import rclpy
+from rclpy.node import Node
+from rclpy.action import ActionClient
+from std_msgs.msg import String
+from enum import Enum, auto
+from typing import Optional, Callable
+import threading
+
+class RobotState(Enum):
+    IDLE = auto()
+    SEARCHING = auto()
+    APPROACHING = auto()
+    GRASPING = auto()
+    PLACING = auto()
+    ERROR = auto()
+
+class StateMachine(Node):
+    def __init__(self):
+        super().__init__('behavior_state_machine')
+
+        self.state = RobotState.IDLE
+        self.state_lock = threading.Lock()
+
+        # State handlers
+        self.state_handlers = {
+            RobotState.IDLE: self.handle_idle,
+            RobotState.SEARCHING: self.handle_searching,
+            RobotState.APPROACHING: self.handle_approaching,
+            RobotState.GRASPING: self.handle_grasping,
+            RobotState.PLACING: self.handle_placing,
+            RobotState.ERROR: self.handle_error,
+        }
+
+        # Publishers
+        self.state_pub = self.create_publisher(String, 'robot_state', 10)
+
+        # Timer for state machine execution
+        self.timer = self.create_timer(0.1, self.execute)
+
+        # Perception data
+        self.target_detected = False
+        self.target_pose = None
+        self.grasp_complete = False
+
+    def transition_to(self, new_state: RobotState):
+        """Transition to new state"""
+        with self.state_lock:
+            self.get_logger().info(f'Transitioning: {self.state} -> {new_state}')
+            self.state = new_state
+
+            # Publish state change
+            msg = String()
+            msg.data = new_state.name
+            self.state_pub.publish(msg)
+
+    def execute(self):
+        """Execute current state"""
+        with self.state_lock:
+            current_state = self.state
+
+        handler = self.state_handlers.get(current_state)
+        if handler:
+            handler()
+
+    def handle_idle(self):
+        """Waiting for task"""
+        # Check for new task
+        if self.has_pending_task():
+            self.transition_to(RobotState.SEARCHING)
+
+    def handle_searching(self):
+        """Searching for target object"""
+        if self.target_detected and self.target_pose:
+            self.transition_to(RobotState.APPROACHING)
+        # Add timeout logic here
+
+    def handle_approaching(self):
+        """Moving toward target"""
+        if self.is_at_grasp_position():
+            self.transition_to(RobotState.GRASPING)
+        elif not self.target_detected:
+            self.transition_to(RobotState.SEARCHING)
+
+    def handle_grasping(self):
+        """Executing grasp"""
+        if self.grasp_complete:
+            self.transition_to(RobotState.PLACING)
+        elif self.grasp_failed():
+            self.transition_to(RobotState.ERROR)
+
+    def handle_placing(self):
+        """Placing object at target location"""
+        if self.place_complete():
+            self.grasp_complete = False
+            self.target_detected = False
+            self.transition_to(RobotState.IDLE)
+
+    def handle_error(self):
+        """Error recovery"""
+        self.get_logger().error('In error state - attempting recovery')
+        # Implement recovery logic
+        self.transition_to(RobotState.IDLE)
+
+    def has_pending_task(self) -> bool:
+        # Check task queue
+        return False
+
+    def is_at_grasp_position(self) -> bool:
+        return False
+
+    def grasp_failed(self) -> bool:
+        return False
+
+    def place_complete(self) -> bool:
+        return False
+```
+
+### Task 2: Integrated Launch System
+
+Create a comprehensive launch file:
+
+```python
+# integrated_launch.py
+from launch import LaunchDescription
+from launch_ros.actions import Node, LifecycleNode
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.substitutions import LaunchConfiguration
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.conditions import IfCondition
+import os
+from ament_index_python.packages import get_package_share_directory
+
+def generate_launch_description():
+    # Arguments
+    use_sim = DeclareLaunchArgument(
+        'use_sim',
+        default_value='true',
+        description='Use simulation'
+    )
+
+    robot_name = DeclareLaunchArgument(
+        'robot_name',
+        default_value='robot',
+        description='Robot namespace'
+    )
+
+    # Get package paths
+    pkg_share = get_package_share_directory('robot_system')
+
+    # Perception nodes
+    perception_nodes = [
+        Node(
+            package='robot_perception',
+            executable='camera_node',
+            name='camera',
+            namespace=LaunchConfiguration('robot_name'),
+            parameters=[{
+                'camera_topic': 'color/image_raw',
+                'depth_topic': 'depth/image_raw'
+            }]
+        ),
+        Node(
+            package='robot_perception',
+            executable='object_detector',
+            name='detector',
+            namespace=LaunchConfiguration('robot_name'),
+        ),
+    ]
+
+    # Planning nodes
+    planning_nodes = [
+        Node(
+            package='robot_planning',
+            executable='motion_planner',
+            name='planner',
+            namespace=LaunchConfiguration('robot_name'),
+            parameters=[os.path.join(pkg_share, 'config', 'planner.yaml')]
+        ),
+    ]
+
+    # Control nodes
+    control_nodes = [
+        Node(
+            package='robot_control',
+            executable='controller',
+            name='controller',
+            namespace=LaunchConfiguration('robot_name'),
+        ),
+    ]
+
+    # State machine
+    state_machine = Node(
+        package='robot_behavior',
+        executable='state_machine',
+        name='behavior_sm',
+        namespace=LaunchConfiguration('robot_name'),
+    )
+
+    return LaunchDescription([
+        use_sim,
+        robot_name,
+        *perception_nodes,
+        *planning_nodes,
+        *control_nodes,
+        state_machine,
+    ])
+```
+
+### Task 3: Error Handling and Recovery
+
+Implement robust error handling:
+
+```python
+# error_handler.py
+import rclpy
+from rclpy.node import Node
+from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
+from std_srvs.srv import Trigger
+from typing import Dict, Callable
+import traceback
+
+class ErrorHandler(Node):
+    def __init__(self):
+        super().__init__('error_handler')
+
+        # Diagnostic subscription
+        self.diag_sub = self.create_subscription(
+            DiagnosticArray,
+            '/diagnostics',
+            self.diagnostics_callback,
+            10
+        )
+
+        # Recovery services
+        self.recovery_services: Dict[str, Callable] = {
+            'sensor_failure': self.recover_sensor,
+            'motor_fault': self.recover_motor,
+            'localization_lost': self.recover_localization,
+            'planning_failed': self.recover_planning,
+        }
+
+        # Error state
+        self.active_errors: Dict[str, DiagnosticStatus] = {}
+
+        # Recovery service
+        self.recovery_srv = self.create_service(
+            Trigger,
+            'attempt_recovery',
+            self.handle_recovery_request
+        )
+
+    def diagnostics_callback(self, msg: DiagnosticArray):
+        """Process diagnostic messages"""
+        for status in msg.status:
+            if status.level >= DiagnosticStatus.WARN:
+                self.handle_diagnostic(status)
+
+    def handle_diagnostic(self, status: DiagnosticStatus):
+        """Handle diagnostic warning/error"""
+        error_key = status.name
+
+        if status.level == DiagnosticStatus.ERROR:
+            self.get_logger().error(f'Error: {status.name} - {status.message}')
+            self.active_errors[error_key] = status
+
+            # Attempt automatic recovery for known errors
+            error_type = self.classify_error(status)
+            if error_type in self.recovery_services:
+                self.attempt_recovery(error_type)
+        elif status.level == DiagnosticStatus.WARN:
+            self.get_logger().warn(f'Warning: {status.name} - {status.message}')
+
+    def classify_error(self, status: DiagnosticStatus) -> str:
+        """Classify error type based on diagnostic"""
+        name_lower = status.name.lower()
+        message_lower = status.message.lower()
+
+        if 'camera' in name_lower or 'sensor' in name_lower:
+            return 'sensor_failure'
+        elif 'motor' in name_lower or 'joint' in name_lower:
+            return 'motor_fault'
+        elif 'localization' in name_lower or 'pose' in name_lower:
+            return 'localization_lost'
+        elif 'planning' in name_lower or 'path' in name_lower:
+            return 'planning_failed'
+
+        return 'unknown'
+
+    def attempt_recovery(self, error_type: str) -> bool:
+        """Attempt recovery for error type"""
+        recovery_func = self.recovery_services.get(error_type)
+        if not recovery_func:
+            self.get_logger().warn(f'No recovery for error type: {error_type}')
+            return False
+
+        try:
+            self.get_logger().info(f'Attempting recovery for: {error_type}')
+            success = recovery_func()
+            if success:
+                self.get_logger().info(f'Recovery successful: {error_type}')
+            else:
+                self.get_logger().error(f'Recovery failed: {error_type}')
+            return success
+        except Exception as e:
+            self.get_logger().error(f'Recovery exception: {traceback.format_exc()}')
+            return False
+
+    def recover_sensor(self) -> bool:
+        """Attempt sensor recovery"""
+        # Try to reinitialize sensor
+        return True
+
+    def recover_motor(self) -> bool:
+        """Attempt motor recovery"""
+        # Reset motor controller
+        return True
+
+    def recover_localization(self) -> bool:
+        """Attempt localization recovery"""
+        # Trigger relocalization
+        return True
+
+    def recover_planning(self) -> bool:
+        """Attempt planning recovery"""
+        # Clear and replan
+        return True
+
+    def handle_recovery_request(self, request, response):
+        """Handle manual recovery request"""
+        success = True
+        for error_type in list(self.active_errors.keys()):
+            if not self.attempt_recovery(self.classify_error(
+                    self.active_errors[error_type])):
+                success = False
+
+        response.success = success
+        response.message = 'Recovery attempted for all active errors'
+        return response
+```
+
+## Code Examples
+
+### System Health Monitor
+
+```python
+# health_monitor.py
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import Bool
+from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
+import psutil
+from datetime import datetime
+
+class HealthMonitor(Node):
+    def __init__(self):
+        super().__init__('health_monitor')
+
+        self.diagnostics_pub = self.create_publisher(
+            DiagnosticArray, '/diagnostics', 10
+        )
+        self.healthy_pub = self.create_publisher(
+            Bool, 'system_healthy', 10
+        )
+
+        # Monitor components
+        self.components = {}
+
+        # Timer for health checks
+        self.timer = self.create_timer(1.0, self.check_health)
+
+    def check_health(self):
+        diagnostics = DiagnosticArray()
+        diagnostics.header.stamp = self.get_clock().now().to_msg()
+
+        # System resources
+        diagnostics.status.append(self.check_cpu())
+        diagnostics.status.append(self.check_memory())
+        diagnostics.status.append(self.check_disk())
+
+        # Publish diagnostics
+        self.diagnostics_pub.publish(diagnostics)
+
+        # Overall health
+        healthy = all(s.level == DiagnosticStatus.OK
+                     for s in diagnostics.status)
+        msg = Bool()
+        msg.data = healthy
+        self.healthy_pub.publish(msg)
+
+    def check_cpu(self) -> DiagnosticStatus:
+        status = DiagnosticStatus()
+        status.name = 'CPU'
+
+        cpu_percent = psutil.cpu_percent()
+        status.values.append(('usage_percent', str(cpu_percent)))
+
+        if cpu_percent > 90:
+            status.level = DiagnosticStatus.ERROR
+            status.message = f'CPU critical: {cpu_percent}%'
+        elif cpu_percent > 70:
+            status.level = DiagnosticStatus.WARN
+            status.message = f'CPU high: {cpu_percent}%'
+        else:
+            status.level = DiagnosticStatus.OK
+            status.message = f'CPU OK: {cpu_percent}%'
+
+        return status
+
+    def check_memory(self) -> DiagnosticStatus:
+        status = DiagnosticStatus()
+        status.name = 'Memory'
+
+        mem = psutil.virtual_memory()
+        status.values.append(('percent', str(mem.percent)))
+
+        if mem.percent > 90:
+            status.level = DiagnosticStatus.ERROR
+            status.message = f'Memory critical: {mem.percent}%'
+        elif mem.percent > 80:
+            status.level = DiagnosticStatus.WARN
+            status.message = f'Memory high: {mem.percent}%'
+        else:
+            status.level = DiagnosticStatus.OK
+            status.message = f'Memory OK: {mem.percent}%'
+
+        return status
+
+    def check_disk(self) -> DiagnosticStatus:
+        status = DiagnosticStatus()
+        status.name = 'Disk'
+
+        disk = psutil.disk_usage('/')
+        status.values.append(('percent', str(disk.percent)))
+
+        if disk.percent > 95:
+            status.level = DiagnosticStatus.ERROR
+            status.message = f'Disk critical: {disk.percent}%'
+        elif disk.percent > 85:
+            status.level = DiagnosticStatus.WARN
+            status.message = f'Disk high: {disk.percent}%'
+        else:
+            status.level = DiagnosticStatus.OK
+            status.message = f'Disk OK: {disk.percent}%'
+
+        return status
+```
+
+## Summary
+
+In this chapter, we covered:
+
+- System architecture design for robots
+- Behavior state machines for task sequencing
+- Comprehensive launch configurations
+- Error handling and recovery strategies
+- Health monitoring and diagnostics
+
+## Additional Resources
+
+- [ROS2 Managed Nodes](https://design.ros2.org/articles/node_lifecycle.html)
+- [SMACH - State Machine Library](http://wiki.ros.org/smach)
+- [ROS2 Launch System](https://docs.ros.org/en/humble/Tutorials/Intermediate/Launch/Launch-Main.html)
+
+</ChatSelection>
+
+## Chapter Quiz
+
+<ChapterQuiz chapterId="week-11-integration" />

@@ -1,0 +1,517 @@
+---
+sidebar_position: 3
+title: "Week 6: SLAM"
+description: "Understand and implement Simultaneous Localization and Mapping for robot navigation"
+---
+
+import ChapterQuiz from '@site/src/components/ChapterQuiz';
+import ChatSelection from '@site/src/components/ChatSelection';
+
+# Week 6: SLAM (Simultaneous Localization and Mapping)
+
+<ChatSelection chapterId="week-6-slam">
+
+## Learning Objectives
+
+By the end of this chapter, you will be able to:
+
+1. Understand the SLAM problem and its components
+2. Implement basic occupancy grid mapping
+3. Use ROS2 Nav2 SLAM toolbox for real-world applications
+4. Tune SLAM parameters for different environments
+5. Evaluate map quality and localization accuracy
+
+## Introduction
+
+SLAM is one of the fundamental problems in robotics: building a map of an unknown environment while simultaneously keeping track of the robot's location within it. This chapter explores the theory and practice of SLAM.
+
+## Theory: The SLAM Problem
+
+### SLAM Formulation
+
+The SLAM problem involves estimating:
+- The robot's trajectory over time
+- The map of the environment
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    SLAM Problem                         │
+│                                                         │
+│   ┌──────────┐    Odometry     ┌──────────┐            │
+│   │ Pose t-1 │ ──────────────▶ │  Pose t  │            │
+│   └──────────┘                 └──────────┘            │
+│        │                            │                   │
+│        │ Observation               │ Observation       │
+│        ▼                            ▼                   │
+│   ┌──────────────────────────────────────┐             │
+│   │              Map                      │             │
+│   └──────────────────────────────────────┘             │
+└─────────────────────────────────────────────────────────┘
+```
+
+### SLAM Approaches
+
+| Approach | Description | Use Case |
+|----------|-------------|----------|
+| EKF-SLAM | Extended Kalman Filter | Small environments, landmark-based |
+| Particle Filter | Monte Carlo localization | Large environments, grid maps |
+| Graph-SLAM | Pose graph optimization | Large-scale, loop closure |
+| Visual SLAM | Camera-based | Feature-rich environments |
+
+## Lab Tasks
+
+### Task 1: Occupancy Grid Mapping
+
+Implement a simple occupancy grid mapper:
+
+```python
+# occupancy_grid_mapper.py
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import LaserScan
+from nav_msgs.msg import OccupancyGrid, Odometry
+from geometry_msgs.msg import Pose
+import numpy as np
+from scipy.spatial.transform import Rotation
+import math
+
+class OccupancyGridMapper(Node):
+    def __init__(self):
+        super().__init__('occupancy_grid_mapper')
+
+        # Map parameters
+        self.resolution = 0.05  # meters per cell
+        self.width = 400  # cells
+        self.height = 400  # cells
+        self.origin_x = -10.0  # meters
+        self.origin_y = -10.0  # meters
+
+        # Initialize map (log-odds representation)
+        self.log_odds_map = np.zeros((self.height, self.width), dtype=np.float32)
+
+        # Log-odds parameters
+        self.l_occ = 0.85  # Log-odds for occupied
+        self.l_free = -0.4  # Log-odds for free
+        self.l_min = -2.0
+        self.l_max = 3.5
+
+        # Robot pose
+        self.robot_x = 0.0
+        self.robot_y = 0.0
+        self.robot_theta = 0.0
+
+        # Subscribers
+        self.scan_sub = self.create_subscription(
+            LaserScan, 'scan', self.scan_callback, 10)
+        self.odom_sub = self.create_subscription(
+            Odometry, 'odom', self.odom_callback, 10)
+
+        # Publisher
+        self.map_pub = self.create_publisher(OccupancyGrid, 'map', 10)
+
+        # Timer for publishing map
+        self.create_timer(1.0, self.publish_map)
+
+        self.get_logger().info('Occupancy Grid Mapper started')
+
+    def odom_callback(self, msg):
+        self.robot_x = msg.pose.pose.position.x
+        self.robot_y = msg.pose.pose.position.y
+        q = msg.pose.pose.orientation
+        self.robot_theta = Rotation.from_quat(
+            [q.x, q.y, q.z, q.w]).as_euler('xyz')[2]
+
+    def scan_callback(self, msg):
+        # Process each laser beam
+        angle = msg.angle_min
+
+        for r in msg.ranges:
+            if msg.range_min < r < msg.range_max:
+                # Calculate endpoint in world coordinates
+                beam_x = self.robot_x + r * math.cos(self.robot_theta + angle)
+                beam_y = self.robot_y + r * math.sin(self.robot_theta + angle)
+
+                # Trace ray from robot to endpoint
+                self.trace_ray(self.robot_x, self.robot_y, beam_x, beam_y)
+
+                # Mark endpoint as occupied
+                self.update_cell(beam_x, beam_y, self.l_occ)
+
+            angle += msg.angle_increment
+
+    def trace_ray(self, x0, y0, x1, y1):
+        """Bresenham's line algorithm for ray tracing"""
+        # Convert to grid coordinates
+        gx0, gy0 = self.world_to_grid(x0, y0)
+        gx1, gy1 = self.world_to_grid(x1, y1)
+
+        dx = abs(gx1 - gx0)
+        dy = abs(gy1 - gy0)
+        sx = 1 if gx0 < gx1 else -1
+        sy = 1 if gy0 < gy1 else -1
+        err = dx - dy
+
+        while True:
+            if 0 <= gx0 < self.width and 0 <= gy0 < self.height:
+                # Update cell as free (except the endpoint)
+                if gx0 != gx1 or gy0 != gy1:
+                    self.log_odds_map[gy0, gx0] += self.l_free
+                    self.log_odds_map[gy0, gx0] = np.clip(
+                        self.log_odds_map[gy0, gx0], self.l_min, self.l_max)
+
+            if gx0 == gx1 and gy0 == gy1:
+                break
+
+            e2 = 2 * err
+            if e2 > -dy:
+                err -= dy
+                gx0 += sx
+            if e2 < dx:
+                err += dx
+                gy0 += sy
+
+    def update_cell(self, x, y, log_odds):
+        """Update a cell's log-odds value"""
+        gx, gy = self.world_to_grid(x, y)
+        if 0 <= gx < self.width and 0 <= gy < self.height:
+            self.log_odds_map[gy, gx] += log_odds
+            self.log_odds_map[gy, gx] = np.clip(
+                self.log_odds_map[gy, gx], self.l_min, self.l_max)
+
+    def world_to_grid(self, x, y):
+        """Convert world coordinates to grid coordinates"""
+        gx = int((x - self.origin_x) / self.resolution)
+        gy = int((y - self.origin_y) / self.resolution)
+        return gx, gy
+
+    def publish_map(self):
+        """Publish the occupancy grid"""
+        msg = OccupancyGrid()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = 'map'
+
+        msg.info.resolution = self.resolution
+        msg.info.width = self.width
+        msg.info.height = self.height
+        msg.info.origin.position.x = self.origin_x
+        msg.info.origin.position.y = self.origin_y
+        msg.info.origin.orientation.w = 1.0
+
+        # Convert log-odds to probability
+        prob = 1.0 - 1.0 / (1.0 + np.exp(self.log_odds_map))
+
+        # Convert to occupancy grid format (0-100, -1 for unknown)
+        occupancy = np.where(
+            np.abs(self.log_odds_map) < 0.1,
+            -1,  # Unknown
+            (prob * 100).astype(np.int8)
+        )
+
+        msg.data = occupancy.flatten().tolist()
+        self.map_pub.publish(msg)
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = OccupancyGridMapper()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+### Task 2: Using SLAM Toolbox
+
+Configure and launch SLAM Toolbox for real SLAM:
+
+```yaml
+# slam_toolbox_params.yaml
+slam_toolbox:
+  ros__parameters:
+    # Plugin params
+    solver_plugin: solver_plugins::CeresSolver
+    ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
+    ceres_preconditioner: SCHUR_JACOBI
+    ceres_trust_strategy: LEVENBERG_MARQUARDT
+    ceres_dogleg_type: TRADITIONAL_DOGLEG
+    ceres_loss_function: None
+
+    # ROS Parameters
+    odom_frame: odom
+    map_frame: map
+    base_frame: base_link
+    scan_topic: /scan
+    mode: mapping
+
+    # Toolbox Parameters
+    debug_logging: false
+    throttle_scans: 1
+    transform_publish_period: 0.02
+    map_update_interval: 5.0
+    resolution: 0.05
+    max_laser_range: 20.0
+    minimum_time_interval: 0.5
+    transform_timeout: 0.2
+    tf_buffer_duration: 30.0
+    stack_size_to_use: 40000000
+
+    # General Parameters
+    use_scan_matching: true
+    use_scan_barycenter: true
+    minimum_travel_distance: 0.5
+    minimum_travel_heading: 0.5
+    scan_buffer_size: 10
+    scan_buffer_maximum_scan_distance: 10.0
+    link_match_minimum_response_fine: 0.1
+    link_scan_maximum_distance: 1.5
+    loop_search_maximum_distance: 3.0
+    do_loop_closing: true
+    loop_match_minimum_chain_size: 10
+    loop_match_maximum_variance_coarse: 3.0
+    loop_match_minimum_response_coarse: 0.35
+    loop_match_minimum_response_fine: 0.45
+
+    # Correlation Parameters
+    correlation_search_space_dimension: 0.5
+    correlation_search_space_resolution: 0.01
+    correlation_search_space_smear_deviation: 0.1
+
+    # Loop Closure Parameters
+    loop_search_space_dimension: 8.0
+    loop_search_space_resolution: 0.05
+    loop_search_space_smear_deviation: 0.03
+
+    # Scan Matcher Parameters
+    distance_variance_penalty: 0.5
+    angle_variance_penalty: 1.0
+    fine_search_angle_offset: 0.00349
+    coarse_search_angle_offset: 0.349
+    coarse_angle_resolution: 0.0349
+    minimum_angle_penalty: 0.9
+    minimum_distance_penalty: 0.5
+    use_response_expansion: true
+```
+
+```python
+# slam_launch.py
+from launch import LaunchDescription
+from launch_ros.actions import Node
+from ament_index_python.packages import get_package_share_directory
+import os
+
+def generate_launch_description():
+    pkg_dir = get_package_share_directory('my_robot_slam')
+
+    return LaunchDescription([
+        Node(
+            package='slam_toolbox',
+            executable='async_slam_toolbox_node',
+            name='slam_toolbox',
+            output='screen',
+            parameters=[
+                os.path.join(pkg_dir, 'config', 'slam_toolbox_params.yaml')
+            ],
+        ),
+    ])
+```
+
+### Task 3: Map Saving and Loading
+
+Implement map persistence:
+
+```python
+# map_saver.py
+import rclpy
+from rclpy.node import Node
+from nav_msgs.msg import OccupancyGrid
+from nav_msgs.srv import GetMap
+import yaml
+import numpy as np
+from PIL import Image
+import os
+
+class MapSaver(Node):
+    def __init__(self):
+        super().__init__('map_saver')
+
+        self.declare_parameter('map_name', 'my_map')
+        self.declare_parameter('save_path', '.')
+
+        self.map_name = self.get_parameter('map_name').value
+        self.save_path = self.get_parameter('save_path').value
+
+        self.subscription = self.create_subscription(
+            OccupancyGrid, 'map', self.map_callback, 10)
+
+        self.latest_map = None
+
+        # Service to save map
+        self.save_srv = self.create_service(
+            GetMap, 'save_map', self.save_map_callback)
+
+        self.get_logger().info('Map Saver ready')
+
+    def map_callback(self, msg):
+        self.latest_map = msg
+
+    def save_map_callback(self, request, response):
+        if self.latest_map is None:
+            self.get_logger().error('No map available')
+            return response
+
+        self.save_map(self.latest_map)
+        response.map = self.latest_map
+        return response
+
+    def save_map(self, map_msg):
+        # Convert to numpy array
+        data = np.array(map_msg.data).reshape(
+            map_msg.info.height, map_msg.info.width)
+
+        # Create image (unknown=205, free=254, occupied=0)
+        img_data = np.where(data == -1, 205,
+                   np.where(data < 50, 254, 0)).astype(np.uint8)
+
+        # Flip for correct orientation
+        img_data = np.flipud(img_data)
+
+        # Save image
+        img = Image.fromarray(img_data, mode='L')
+        img_path = os.path.join(self.save_path, f'{self.map_name}.pgm')
+        img.save(img_path)
+
+        # Save YAML metadata
+        yaml_data = {
+            'image': f'{self.map_name}.pgm',
+            'resolution': map_msg.info.resolution,
+            'origin': [
+                map_msg.info.origin.position.x,
+                map_msg.info.origin.position.y,
+                0.0
+            ],
+            'negate': 0,
+            'occupied_thresh': 0.65,
+            'free_thresh': 0.196
+        }
+
+        yaml_path = os.path.join(self.save_path, f'{self.map_name}.yaml')
+        with open(yaml_path, 'w') as f:
+            yaml.dump(yaml_data, f)
+
+        self.get_logger().info(f'Map saved to {yaml_path}')
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = MapSaver()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+## Code Examples
+
+### Monte Carlo Localization
+
+```python
+# particle_filter.py
+import numpy as np
+from scipy.stats import norm
+
+class ParticleFilter:
+    def __init__(self, num_particles=1000, map_data=None):
+        self.num_particles = num_particles
+        self.particles = None
+        self.weights = np.ones(num_particles) / num_particles
+        self.map_data = map_data
+
+    def initialize(self, x_range, y_range, theta_range):
+        """Initialize particles uniformly"""
+        self.particles = np.zeros((self.num_particles, 3))
+        self.particles[:, 0] = np.random.uniform(x_range[0], x_range[1], self.num_particles)
+        self.particles[:, 1] = np.random.uniform(y_range[0], y_range[1], self.num_particles)
+        self.particles[:, 2] = np.random.uniform(theta_range[0], theta_range[1], self.num_particles)
+
+    def predict(self, delta_x, delta_y, delta_theta, noise_std):
+        """Motion model update"""
+        noise = np.random.randn(self.num_particles, 3) * noise_std
+
+        # Update particles based on motion
+        self.particles[:, 0] += delta_x + noise[:, 0]
+        self.particles[:, 1] += delta_y + noise[:, 1]
+        self.particles[:, 2] += delta_theta + noise[:, 2]
+
+        # Normalize angles
+        self.particles[:, 2] = np.arctan2(
+            np.sin(self.particles[:, 2]),
+            np.cos(self.particles[:, 2])
+        )
+
+    def update(self, scan, scan_angles):
+        """Sensor model update"""
+        for i, particle in enumerate(self.particles):
+            expected_scan = self.ray_cast(particle, scan_angles)
+
+            # Compare expected vs actual scan
+            diff = np.abs(scan - expected_scan)
+            diff = np.where(np.isfinite(diff), diff, 10.0)
+
+            # Compute weight using Gaussian likelihood
+            self.weights[i] = np.prod(norm.pdf(diff, 0, 0.5))
+
+        # Normalize weights
+        self.weights /= np.sum(self.weights) + 1e-10
+
+    def ray_cast(self, particle, angles):
+        """Simulate laser scan from particle pose"""
+        # Simplified ray casting (actual implementation would use map)
+        ranges = np.random.uniform(0.5, 10.0, len(angles))
+        return ranges
+
+    def resample(self):
+        """Systematic resampling"""
+        positions = (np.arange(self.num_particles) + np.random.random()) / self.num_particles
+
+        cumulative_sum = np.cumsum(self.weights)
+        indices = np.searchsorted(cumulative_sum, positions)
+
+        self.particles = self.particles[indices]
+        self.weights = np.ones(self.num_particles) / self.num_particles
+
+    def estimate(self):
+        """Get estimated pose"""
+        x = np.average(self.particles[:, 0], weights=self.weights)
+        y = np.average(self.particles[:, 1], weights=self.weights)
+
+        # Circular mean for angle
+        sin_sum = np.average(np.sin(self.particles[:, 2]), weights=self.weights)
+        cos_sum = np.average(np.cos(self.particles[:, 2]), weights=self.weights)
+        theta = np.arctan2(sin_sum, cos_sum)
+
+        return x, y, theta
+```
+
+## Summary
+
+In this chapter, we covered:
+
+- The SLAM problem formulation and approaches
+- Occupancy grid mapping with ray tracing
+- Using SLAM Toolbox for production SLAM
+- Map saving and loading utilities
+- Monte Carlo Localization fundamentals
+
+## Additional Resources
+
+- [SLAM Toolbox Documentation](https://github.com/SteveMacenski/slam_toolbox)
+- [Nav2 SLAM](https://navigation.ros.org/tutorials/docs/navigation2_with_slam.html)
+- [Probabilistic Robotics Book](http://www.probabilistic-robotics.org/)
+
+</ChatSelection>
+
+## Chapter Quiz
+
+<ChapterQuiz chapterId="week-6-slam" />

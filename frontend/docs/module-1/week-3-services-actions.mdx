@@ -1,0 +1,470 @@
+---
+sidebar_position: 3
+title: "Week 3: Services and Actions"
+description: "Learn request-response patterns with ROS2 services and long-running task management with actions"
+---
+
+import ChapterQuiz from '@site/src/components/ChapterQuiz';
+import ChatSelection from '@site/src/components/ChatSelection';
+
+# Week 3: Services and Actions
+
+<ChatSelection chapterId="week-3-services-actions">
+
+## Learning Objectives
+
+By the end of this chapter, you will be able to:
+
+1. Implement ROS2 services for synchronous request-response communication
+2. Create and use custom service definitions
+3. Build action servers and clients for long-running tasks
+4. Handle action feedback and cancellation
+5. Choose between topics, services, and actions for different use cases
+
+## Introduction
+
+While topics are ideal for continuous data streams, many robot operations require request-response patterns (services) or long-running tasks with feedback (actions).
+
+## Theory: ROS2 Services
+
+### Service Communication Model
+
+Services provide synchronous, one-to-one communication:
+
+```
+┌──────────────┐    Request      ┌──────────────┐
+│    Client    │ ──────────────▶ │    Server    │
+│              │                 │              │
+│              │ ◀────────────── │              │
+└──────────────┘    Response     └──────────────┘
+```
+
+### When to Use Services
+
+- **One-time operations**: Getting current state, triggering behaviors
+- **Discrete commands**: Start/stop, enable/disable
+- **Quick queries**: Parameter lookup, status checks
+
+## Theory: ROS2 Actions
+
+### Action Communication Model
+
+Actions handle long-running tasks with progress feedback:
+
+```
+┌──────────────┐    Goal         ┌──────────────┐
+│    Client    │ ──────────────▶ │    Server    │
+│              │                 │              │
+│              │ ◀────────────── │              │
+│              │    Feedback     │              │
+│              │ ◀────────────── │              │
+│              │    Result       │              │
+└──────────────┘                 └──────────────┘
+```
+
+### When to Use Actions
+
+- **Long-running tasks**: Navigation, arm movement
+- **Cancellable operations**: Tasks that may need to be aborted
+- **Progress monitoring**: When you need feedback during execution
+
+## Lab Tasks
+
+### Task 1: Create a Simple Service
+
+Create a service that calculates the sum of two numbers:
+
+```bash
+# Create service file: srv/AddTwoInts.srv
+int64 a
+int64 b
+---
+int64 sum
+```
+
+```python
+# add_service_server.py
+import rclpy
+from rclpy.node import Node
+from example_interfaces.srv import AddTwoInts
+
+class AddTwoIntsServer(Node):
+    def __init__(self):
+        super().__init__('add_two_ints_server')
+        self.srv = self.create_service(
+            AddTwoInts,
+            'add_two_ints',
+            self.add_callback)
+        self.get_logger().info('Add Two Ints Service Ready')
+
+    def add_callback(self, request, response):
+        response.sum = request.a + request.b
+        self.get_logger().info(f'Request: {request.a} + {request.b} = {response.sum}')
+        return response
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = AddTwoIntsServer()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+```python
+# add_service_client.py
+import rclpy
+from rclpy.node import Node
+from example_interfaces.srv import AddTwoInts
+
+class AddTwoIntsClient(Node):
+    def __init__(self):
+        super().__init__('add_two_ints_client')
+        self.client = self.create_client(AddTwoInts, 'add_two_ints')
+
+        while not self.client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('Waiting for service...')
+
+    def send_request(self, a, b):
+        request = AddTwoInts.Request()
+        request.a = a
+        request.b = b
+        future = self.client.call_async(request)
+        return future
+
+def main(args=None):
+    rclpy.init(args=args)
+    client = AddTwoIntsClient()
+    future = client.send_request(10, 20)
+    rclpy.spin_until_future_complete(client, future)
+
+    if future.result() is not None:
+        print(f'Result: {future.result().sum}')
+    else:
+        print('Service call failed')
+
+    client.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+### Task 2: Create a Robot Arm Action
+
+Create an action for moving a robot arm to a target position:
+
+```bash
+# Create action file: action/MoveArm.action
+# Goal
+float64[] target_position
+float64 speed
+---
+# Result
+bool success
+string message
+---
+# Feedback
+float64[] current_position
+float64 progress_percentage
+```
+
+```python
+# arm_action_server.py
+import time
+import rclpy
+from rclpy.node import Node
+from rclpy.action import ActionServer, GoalResponse, CancelResponse
+from rclpy.callback_groups import ReentrantCallbackGroup
+from robot_interfaces.action import MoveArm
+
+class ArmActionServer(Node):
+    def __init__(self):
+        super().__init__('arm_action_server')
+        self._action_server = ActionServer(
+            self,
+            MoveArm,
+            'move_arm',
+            execute_callback=self.execute_callback,
+            goal_callback=self.goal_callback,
+            cancel_callback=self.cancel_callback,
+            callback_group=ReentrantCallbackGroup())
+
+        # Simulated arm position
+        self.current_position = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        self.get_logger().info('Arm Action Server Ready')
+
+    def goal_callback(self, goal_request):
+        self.get_logger().info('Received goal request')
+        return GoalResponse.ACCEPT
+
+    def cancel_callback(self, goal_handle):
+        self.get_logger().info('Received cancel request')
+        return CancelResponse.ACCEPT
+
+    async def execute_callback(self, goal_handle):
+        self.get_logger().info('Executing goal...')
+
+        feedback_msg = MoveArm.Feedback()
+        target = goal_handle.request.target_position
+        steps = 100
+
+        for i in range(steps):
+            if goal_handle.is_cancel_requested:
+                goal_handle.canceled()
+                result = MoveArm.Result()
+                result.success = False
+                result.message = 'Goal canceled'
+                return result
+
+            # Simulate arm movement
+            progress = (i + 1) / steps
+            self.current_position = [
+                self.current_position[j] + (target[j] - self.current_position[j]) * (1/steps)
+                for j in range(min(len(target), len(self.current_position)))
+            ]
+
+            # Publish feedback
+            feedback_msg.current_position = self.current_position
+            feedback_msg.progress_percentage = progress * 100
+            goal_handle.publish_feedback(feedback_msg)
+
+            time.sleep(0.05)  # 50ms per step
+
+        goal_handle.succeed()
+        result = MoveArm.Result()
+        result.success = True
+        result.message = 'Goal reached successfully'
+        return result
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = ArmActionServer()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+```python
+# arm_action_client.py
+import rclpy
+from rclpy.node import Node
+from rclpy.action import ActionClient
+from robot_interfaces.action import MoveArm
+
+class ArmActionClient(Node):
+    def __init__(self):
+        super().__init__('arm_action_client')
+        self._action_client = ActionClient(self, MoveArm, 'move_arm')
+
+    def send_goal(self, target_position, speed=1.0):
+        goal_msg = MoveArm.Goal()
+        goal_msg.target_position = target_position
+        goal_msg.speed = speed
+
+        self._action_client.wait_for_server()
+        self._send_goal_future = self._action_client.send_goal_async(
+            goal_msg,
+            feedback_callback=self.feedback_callback)
+        self._send_goal_future.add_done_callback(self.goal_response_callback)
+
+    def goal_response_callback(self, future):
+        goal_handle = future.result()
+        if not goal_handle.accepted:
+            self.get_logger().info('Goal rejected')
+            return
+
+        self.get_logger().info('Goal accepted')
+        self._get_result_future = goal_handle.get_result_async()
+        self._get_result_future.add_done_callback(self.get_result_callback)
+
+    def feedback_callback(self, feedback_msg):
+        progress = feedback_msg.feedback.progress_percentage
+        self.get_logger().info(f'Progress: {progress:.1f}%')
+
+    def get_result_callback(self, future):
+        result = future.result().result
+        self.get_logger().info(f'Result: {result.message}')
+        rclpy.shutdown()
+
+def main(args=None):
+    rclpy.init(args=args)
+    client = ArmActionClient()
+    client.send_goal([1.0, 0.5, 0.3, 0.0, 0.0, 0.0])
+    rclpy.spin(client)
+
+if __name__ == '__main__':
+    main()
+```
+
+### Task 3: Cancel an Action
+
+Demonstrate action cancellation:
+
+```python
+# cancel_action.py
+import rclpy
+from rclpy.node import Node
+from rclpy.action import ActionClient
+from robot_interfaces.action import MoveArm
+import threading
+import time
+
+class CancellableActionClient(Node):
+    def __init__(self):
+        super().__init__('cancellable_action_client')
+        self._action_client = ActionClient(self, MoveArm, 'move_arm')
+        self._goal_handle = None
+
+    def send_goal_with_cancel(self, target_position, cancel_after=2.0):
+        goal_msg = MoveArm.Goal()
+        goal_msg.target_position = target_position
+        goal_msg.speed = 1.0
+
+        self._action_client.wait_for_server()
+
+        # Start timer to cancel after delay
+        cancel_timer = threading.Timer(cancel_after, self.cancel_goal)
+        cancel_timer.start()
+
+        self._send_goal_future = self._action_client.send_goal_async(
+            goal_msg,
+            feedback_callback=self.feedback_callback)
+        self._send_goal_future.add_done_callback(self.goal_response_callback)
+
+    def goal_response_callback(self, future):
+        self._goal_handle = future.result()
+        if not self._goal_handle.accepted:
+            self.get_logger().info('Goal rejected')
+            return
+
+        self.get_logger().info('Goal accepted')
+        self._get_result_future = self._goal_handle.get_result_async()
+        self._get_result_future.add_done_callback(self.get_result_callback)
+
+    def feedback_callback(self, feedback_msg):
+        progress = feedback_msg.feedback.progress_percentage
+        self.get_logger().info(f'Progress: {progress:.1f}%')
+
+    def cancel_goal(self):
+        if self._goal_handle is not None:
+            self.get_logger().info('Canceling goal...')
+            self._goal_handle.cancel_goal_async()
+
+    def get_result_callback(self, future):
+        result = future.result().result
+        status = future.result().status
+        self.get_logger().info(f'Result: {result.message}, Status: {status}')
+        rclpy.shutdown()
+
+def main(args=None):
+    rclpy.init(args=args)
+    client = CancellableActionClient()
+    # Cancel after 2 seconds
+    client.send_goal_with_cancel([1.0, 0.5, 0.3, 0.0, 0.0, 0.0], cancel_after=2.0)
+    rclpy.spin(client)
+
+if __name__ == '__main__':
+    main()
+```
+
+## Code Examples
+
+### C++ Service Server
+
+```cpp
+#include "rclcpp/rclcpp.hpp"
+#include "example_interfaces/srv/add_two_ints.hpp"
+
+class AddTwoIntsServer : public rclcpp::Node
+{
+public:
+    AddTwoIntsServer() : Node("add_two_ints_server")
+    {
+        service_ = this->create_service<example_interfaces::srv::AddTwoInts>(
+            "add_two_ints",
+            std::bind(&AddTwoIntsServer::add, this,
+                      std::placeholders::_1, std::placeholders::_2));
+        RCLCPP_INFO(this->get_logger(), "Add Two Ints Service Ready");
+    }
+
+private:
+    void add(const std::shared_ptr<example_interfaces::srv::AddTwoInts::Request> request,
+             std::shared_ptr<example_interfaces::srv::AddTwoInts::Response> response)
+    {
+        response->sum = request->a + request->b;
+        RCLCPP_INFO(this->get_logger(), "Request: %ld + %ld = %ld",
+                    request->a, request->b, response->sum);
+    }
+
+    rclcpp::Service<example_interfaces::srv::AddTwoInts>::SharedPtr service_;
+};
+
+int main(int argc, char * argv[])
+{
+    rclcpp::init(argc, argv);
+    rclcpp::spin(std::make_shared<AddTwoIntsServer>());
+    rclcpp::shutdown();
+    return 0;
+}
+```
+
+## Communication Pattern Comparison
+
+| Feature | Topics | Services | Actions |
+|---------|--------|----------|---------|
+| Communication | Many-to-many | One-to-one | One-to-one |
+| Synchronous | No | Yes | No |
+| Feedback | N/A | N/A | Yes |
+| Cancellable | N/A | N/A | Yes |
+| Use Case | Streaming data | Quick requests | Long tasks |
+
+## CLI Tools Reference
+
+```bash
+# List services
+ros2 service list
+
+# Get service type
+ros2 service type /add_two_ints
+
+# Call service
+ros2 service call /add_two_ints example_interfaces/srv/AddTwoInts "{a: 5, b: 3}"
+
+# List actions
+ros2 action list
+
+# Get action info
+ros2 action info /move_arm
+
+# Send action goal
+ros2 action send_goal /move_arm robot_interfaces/action/MoveArm "{target_position: [1.0, 0.5, 0.3]}" --feedback
+```
+
+## Summary
+
+In this chapter, we covered:
+
+- Service communication for synchronous request-response patterns
+- Creating custom service definitions
+- Action communication for long-running tasks with feedback
+- Implementing action servers with goal, cancel, and feedback handling
+- Action clients with result and feedback callbacks
+- Choosing between topics, services, and actions
+
+## Additional Resources
+
+- [ROS2 Services Tutorial](https://docs.ros.org/en/humble/Tutorials/Beginner-CLI-Tools/Understanding-ROS2-Services.html)
+- [ROS2 Actions Tutorial](https://docs.ros.org/en/humble/Tutorials/Intermediate/Writing-an-Action-Server-Client.html)
+- [Service vs Action Design](https://docs.ros.org/en/humble/Concepts/About-ROS-Interfaces.html)
+
+</ChatSelection>
+
+## Chapter Quiz
+
+<ChapterQuiz chapterId="week-3-services-actions" />

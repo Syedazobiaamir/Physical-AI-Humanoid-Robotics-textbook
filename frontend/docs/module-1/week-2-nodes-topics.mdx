@@ -1,0 +1,366 @@
+---
+sidebar_position: 2
+title: "Week 2: Nodes and Topics"
+description: "Deep dive into ROS2 nodes and topics for inter-process communication"
+---
+
+import ChapterQuiz from '@site/src/components/ChapterQuiz';
+import ChatSelection from '@site/src/components/ChatSelection';
+
+# Week 2: Nodes and Topics
+
+<ChatSelection chapterId="week-2-nodes-topics">
+
+## Learning Objectives
+
+By the end of this chapter, you will be able to:
+
+1. Create and manage multiple ROS2 nodes
+2. Implement publisher-subscriber patterns
+3. Define and use custom message types
+4. Use Quality of Service (QoS) settings effectively
+5. Debug node communication with ROS2 CLI tools
+
+## Introduction
+
+Nodes and topics form the backbone of ROS2 communication. Understanding how to design and implement these components is essential for building robust robot systems.
+
+## Theory: ROS2 Nodes
+
+### What is a Node?
+
+A node is a modular process that performs computation. Good practices for node design:
+
+- **Single responsibility**: Each node should do one thing well
+- **Loose coupling**: Nodes communicate via topics, not direct calls
+- **Composability**: Nodes can be combined in different ways
+
+### Node Lifecycle
+
+ROS2 introduces managed lifecycle nodes with defined states:
+
+```
+┌─────────────┐
+│ Unconfigured │
+└──────┬──────┘
+       │ configure()
+       ▼
+┌─────────────┐
+│  Inactive   │
+└──────┬──────┘
+       │ activate()
+       ▼
+┌─────────────┐
+│   Active    │
+└──────┬──────┘
+       │ deactivate()
+       ▼
+┌─────────────┐
+│  Inactive   │
+└─────────────┘
+```
+
+## Theory: ROS2 Topics
+
+### Topic Communication Model
+
+Topics implement a publish-subscribe pattern:
+
+```
+┌──────────────┐     /sensor_data     ┌──────────────┐
+│  Publisher   │ ──────────────────▶  │  Subscriber  │
+│    Node      │                      │    Node      │
+└──────────────┘                      └──────────────┘
+```
+
+### Quality of Service (QoS)
+
+QoS profiles control message delivery behavior:
+
+| Profile | Reliability | Durability | History |
+|---------|-------------|------------|---------|
+| Default | Reliable | Volatile | Keep Last |
+| Sensor Data | Best Effort | Volatile | Keep Last |
+| Parameters | Reliable | Transient Local | Keep Last |
+
+## Lab Tasks
+
+### Task 1: Create a Multi-Node System
+
+Create a camera simulation system with publisher and subscriber nodes:
+
+```python
+# camera_publisher.py
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+import numpy as np
+
+class CameraPublisher(Node):
+    def __init__(self):
+        super().__init__('camera_publisher')
+        self.publisher_ = self.create_publisher(Image, 'camera/image_raw', 10)
+        self.timer = self.create_timer(0.1, self.timer_callback)  # 10 Hz
+        self.bridge = CvBridge()
+        self.get_logger().info('Camera publisher started')
+
+    def timer_callback(self):
+        # Simulate camera image (640x480 RGB)
+        img = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
+        msg = self.bridge.cv2_to_imgmsg(img, encoding='rgb8')
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = 'camera_frame'
+        self.publisher_.publish(msg)
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = CameraPublisher()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+```python
+# image_processor.py
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+import numpy as np
+
+class ImageProcessor(Node):
+    def __init__(self):
+        super().__init__('image_processor')
+        self.subscription = self.create_subscription(
+            Image,
+            'camera/image_raw',
+            self.image_callback,
+            10)
+        self.publisher_ = self.create_publisher(Image, 'camera/image_processed', 10)
+        self.bridge = CvBridge()
+        self.get_logger().info('Image processor started')
+
+    def image_callback(self, msg):
+        # Convert ROS Image to OpenCV
+        cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='rgb8')
+
+        # Process image (convert to grayscale)
+        gray = np.mean(cv_image, axis=2, keepdims=True)
+        processed = np.repeat(gray, 3, axis=2).astype(np.uint8)
+
+        # Publish processed image
+        processed_msg = self.bridge.cv2_to_imgmsg(processed, encoding='rgb8')
+        processed_msg.header = msg.header
+        self.publisher_.publish(processed_msg)
+        self.get_logger().debug('Processed image published')
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = ImageProcessor()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+### Task 2: Create Custom Message Types
+
+Define a custom message for robot status:
+
+```bash
+# Create message file: msg/RobotStatus.msg
+string robot_name
+float64 battery_level
+bool is_moving
+geometry_msgs/Twist current_velocity
+```
+
+```python
+# robot_status_publisher.py
+import rclpy
+from rclpy.node import Node
+from my_robot_msgs.msg import RobotStatus
+from geometry_msgs.msg import Twist
+
+class RobotStatusPublisher(Node):
+    def __init__(self):
+        super().__init__('robot_status_publisher')
+        self.publisher_ = self.create_publisher(RobotStatus, 'robot/status', 10)
+        self.timer = self.create_timer(1.0, self.timer_callback)
+        self.battery_level = 100.0
+
+    def timer_callback(self):
+        msg = RobotStatus()
+        msg.robot_name = 'my_robot'
+        msg.battery_level = self.battery_level
+        msg.is_moving = True
+        msg.current_velocity = Twist()
+        msg.current_velocity.linear.x = 0.5
+        self.publisher_.publish(msg)
+
+        # Simulate battery drain
+        self.battery_level = max(0.0, self.battery_level - 0.1)
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = RobotStatusPublisher()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+### Task 3: Implement QoS Profiles
+
+Configure QoS for sensor data:
+
+```python
+# qos_example.py
+import rclpy
+from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
+from sensor_msgs.msg import LaserScan
+
+class LaserScanSubscriber(Node):
+    def __init__(self):
+        super().__init__('laser_scan_subscriber')
+
+        # Sensor data QoS profile - best effort for real-time data
+        sensor_qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.VOLATILE,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=5
+        )
+
+        self.subscription = self.create_subscription(
+            LaserScan,
+            'scan',
+            self.scan_callback,
+            sensor_qos)
+
+        self.get_logger().info('Laser scan subscriber with sensor QoS started')
+
+    def scan_callback(self, msg):
+        # Process laser scan data
+        min_range = min(msg.ranges) if msg.ranges else float('inf')
+        self.get_logger().info(f'Minimum range: {min_range:.2f}m')
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = LaserScanSubscriber()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+## Code Examples
+
+### C++ Publisher with QoS
+
+```cpp
+#include "rclcpp/rclcpp.hpp"
+#include "sensor_msgs/msg/laser_scan.hpp"
+
+class LaserScanPublisher : public rclcpp::Node
+{
+public:
+    LaserScanPublisher() : Node("laser_scan_publisher")
+    {
+        auto sensor_qos = rclcpp::QoS(rclcpp::SensorDataQoS());
+        publisher_ = this->create_publisher<sensor_msgs::msg::LaserScan>("scan", sensor_qos);
+        timer_ = this->create_wall_timer(
+            std::chrono::milliseconds(100),
+            std::bind(&LaserScanPublisher::timer_callback, this));
+    }
+
+private:
+    void timer_callback()
+    {
+        auto message = sensor_msgs::msg::LaserScan();
+        message.header.stamp = this->now();
+        message.header.frame_id = "laser_frame";
+        message.angle_min = -1.57;
+        message.angle_max = 1.57;
+        message.angle_increment = 0.01;
+        message.range_min = 0.1;
+        message.range_max = 10.0;
+
+        // Simulate laser ranges
+        for (int i = 0; i < 315; i++) {
+            message.ranges.push_back(5.0 + static_cast<float>(rand()) / RAND_MAX);
+        }
+
+        publisher_->publish(message);
+    }
+
+    rclcpp::Publisher<sensor_msgs::msg::LaserScan>::SharedPtr publisher_;
+    rclcpp::TimerBase::SharedPtr timer_;
+};
+
+int main(int argc, char * argv[])
+{
+    rclcpp::init(argc, argv);
+    rclcpp::spin(std::make_shared<LaserScanPublisher>());
+    rclcpp::shutdown();
+    return 0;
+}
+```
+
+## CLI Tools Reference
+
+```bash
+# List all nodes
+ros2 node list
+
+# Get node info
+ros2 node info /camera_publisher
+
+# List all topics
+ros2 topic list
+
+# Show topic info
+ros2 topic info /camera/image_raw
+
+# Echo topic messages
+ros2 topic echo /camera/image_raw
+
+# Publish to topic
+ros2 topic pub /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.5}, angular: {z: 0.1}}"
+
+# Check message type
+ros2 interface show sensor_msgs/msg/Image
+```
+
+## Summary
+
+In this chapter, we covered:
+
+- Node design principles and lifecycle management
+- Publisher-subscriber communication patterns
+- Creating and using custom message types
+- Quality of Service (QoS) configuration for different scenarios
+- ROS2 CLI tools for debugging and monitoring
+
+## Additional Resources
+
+- [ROS2 Nodes Tutorial](https://docs.ros.org/en/humble/Tutorials/Beginner-CLI-Tools/Understanding-ROS2-Nodes.html)
+- [ROS2 Topics Tutorial](https://docs.ros.org/en/humble/Tutorials/Beginner-CLI-Tools/Understanding-ROS2-Topics.html)
+- [QoS Settings](https://docs.ros.org/en/humble/Concepts/About-Quality-of-Service-Settings.html)
+
+</ChatSelection>
+
+## Chapter Quiz
+
+<ChapterQuiz chapterId="week-2-nodes-topics" />

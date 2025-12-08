@@ -1,0 +1,70 @@
+{
+  "id": "quiz-week-1-intro",
+  "chapter_id": "week-1-intro",
+  "title": "Week 1: Introduction to Physical AI Quiz",
+  "description": "Test your understanding of Physical AI fundamentals and ROS2 basics",
+  "passing_score": 60,
+  "time_limit_minutes": null,
+  "questions": [
+    {
+      "id": "q1",
+      "text": "What is the primary purpose of ROS2 in robotics applications?",
+      "options": [
+        {"id": "a", "text": "Web development framework"},
+        {"id": "b", "text": "Robot middleware for communication and tools"},
+        {"id": "c", "text": "Database management system"},
+        {"id": "d", "text": "Machine learning library"}
+      ],
+      "correct_answer": "b",
+      "explanation": "ROS2 (Robot Operating System 2) is a middleware framework that provides communication infrastructure, tools, and libraries for building robot applications."
+    },
+    {
+      "id": "q2",
+      "text": "Which communication pattern in ROS2 allows for asynchronous data streaming?",
+      "options": [
+        {"id": "a", "text": "Services"},
+        {"id": "b", "text": "Actions"},
+        {"id": "c", "text": "Topics (Publisher/Subscriber)"},
+        {"id": "d", "text": "Parameters"}
+      ],
+      "correct_answer": "c",
+      "explanation": "Topics use the publisher/subscriber pattern for asynchronous, streaming communication between nodes."
+    },
+    {
+      "id": "q3",
+      "text": "What distinguishes 'Physical AI' from traditional robotics?",
+      "options": [
+        {"id": "a", "text": "Use of more expensive hardware"},
+        {"id": "b", "text": "Integration of AI/ML for adaptive behavior in physical environments"},
+        {"id": "c", "text": "Faster processing speeds"},
+        {"id": "d", "text": "Smaller robot sizes"}
+      ],
+      "correct_answer": "b",
+      "explanation": "Physical AI combines robotics with AI/ML to create systems that can learn, adapt, and make decisions in real-world physical environments."
+    },
+    {
+      "id": "q4",
+      "text": "Which ROS2 concept provides request/response style communication?",
+      "options": [
+        {"id": "a", "text": "Topics"},
+        {"id": "b", "text": "Services"},
+        {"id": "c", "text": "Parameters"},
+        {"id": "d", "text": "Launch files"}
+      ],
+      "correct_answer": "b",
+      "explanation": "Services provide synchronous request/response communication, where a client sends a request and waits for a response from a server."
+    },
+    {
+      "id": "q5",
+      "text": "What is a ROS2 node?",
+      "options": [
+        {"id": "a", "text": "A hardware component"},
+        {"id": "b", "text": "A single executable that performs computation"},
+        {"id": "c", "text": "A network router"},
+        {"id": "d", "text": "A type of sensor"}
+      ],
+      "correct_answer": "b",
+      "explanation": "A ROS2 node is a process that performs computation. Nodes communicate with each other through topics, services, and actions."
+    }
+  ]
+}

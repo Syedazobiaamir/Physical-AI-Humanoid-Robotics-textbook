@@ -1,0 +1,449 @@
+---
+sidebar_position: 2
+title: "Week 5: Computer Vision"
+description: "Implement computer vision algorithms for robot perception using OpenCV and ROS2"
+---
+
+import ChapterQuiz from '@site/src/components/ChapterQuiz';
+import ChatSelection from '@site/src/components/ChatSelection';
+
+# Week 5: Computer Vision
+
+<ChatSelection chapterId="week-5-computer-vision">
+
+## Learning Objectives
+
+By the end of this chapter, you will be able to:
+
+1. Process camera images in ROS2 using OpenCV
+2. Implement object detection and tracking algorithms
+3. Perform camera calibration for accurate measurements
+4. Use ArUco markers for pose estimation
+5. Integrate deep learning models for perception
+
+## Introduction
+
+Computer vision enables robots to interpret visual information from the environment. This chapter covers essential vision techniques for robotics applications.
+
+## Theory: Image Processing Pipeline
+
+### Typical Vision Pipeline
+
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│   Capture   │ -> │ Preprocess  │ -> │   Detect    │ -> │   Track     │
+│   Image     │    │   (Filter)  │    │  (Features) │    │  (Objects)  │
+└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+```
+
+### Color Spaces
+
+| Color Space | Use Case |
+|-------------|----------|
+| RGB | Display, general processing |
+| HSV | Color-based segmentation |
+| LAB | Perceptual uniformity |
+| Grayscale | Edge detection, features |
+
+## Lab Tasks
+
+### Task 1: Object Detection by Color
+
+Detect colored objects in camera images:
+
+```python
+# color_detector.py
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import Image
+from geometry_msgs.msg import Point
+from cv_bridge import CvBridge
+import cv2
+import numpy as np
+
+class ColorDetector(Node):
+    def __init__(self):
+        super().__init__('color_detector')
+
+        self.bridge = CvBridge()
+
+        # HSV ranges for different colors
+        self.color_ranges = {
+            'red': ([0, 100, 100], [10, 255, 255]),
+            'green': ([40, 50, 50], [80, 255, 255]),
+            'blue': ([100, 100, 100], [130, 255, 255]),
+            'yellow': ([20, 100, 100], [40, 255, 255])
+        }
+
+        self.declare_parameter('target_color', 'red')
+        self.target_color = self.get_parameter('target_color').value
+
+        self.subscription = self.create_subscription(
+            Image, 'camera/image_raw', self.image_callback, 10)
+
+        self.detection_pub = self.create_publisher(Point, 'detected_object', 10)
+        self.debug_pub = self.create_publisher(Image, 'detection_debug', 10)
+
+        self.get_logger().info(f'Color Detector started for {self.target_color}')
+
+    def image_callback(self, msg):
+        cv_image = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
+        hsv = cv2.cvtColor(cv_image, cv2.COLOR_BGR2HSV)
+
+        # Get color range
+        lower, upper = self.color_ranges.get(self.target_color, ([0,0,0], [180,255,255]))
+        lower = np.array(lower)
+        upper = np.array(upper)
+
+        # Create mask
+        mask = cv2.inRange(hsv, lower, upper)
+
+        # Morphological operations to clean up mask
+        kernel = np.ones((5, 5), np.uint8)
+        mask = cv2.erode(mask, kernel, iterations=1)
+        mask = cv2.dilate(mask, kernel, iterations=2)
+
+        # Find contours
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        if contours:
+            # Find largest contour
+            largest = max(contours, key=cv2.contourArea)
+            area = cv2.contourArea(largest)
+
+            if area > 500:  # Minimum area threshold
+                # Get centroid
+                M = cv2.moments(largest)
+                if M['m00'] > 0:
+                    cx = int(M['m10'] / M['m00'])
+                    cy = int(M['m01'] / M['m00'])
+
+                    # Publish detection
+                    point = Point()
+                    point.x = float(cx)
+                    point.y = float(cy)
+                    point.z = float(area)
+                    self.detection_pub.publish(point)
+
+                    # Draw on debug image
+                    cv2.drawContours(cv_image, [largest], -1, (0, 255, 0), 2)
+                    cv2.circle(cv_image, (cx, cy), 5, (0, 0, 255), -1)
+                    cv2.putText(cv_image, f'{self.target_color}: ({cx}, {cy})',
+                               (cx + 10, cy), cv2.FONT_HERSHEY_SIMPLEX,
+                               0.5, (255, 255, 255), 2)
+
+        # Publish debug image
+        debug_msg = self.bridge.cv2_to_imgmsg(cv_image, 'bgr8')
+        self.debug_pub.publish(debug_msg)
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = ColorDetector()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+### Task 2: ArUco Marker Detection
+
+Detect ArUco markers for pose estimation:
+
+```python
+# aruco_detector.py
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import Image, CameraInfo
+from geometry_msgs.msg import PoseArray, Pose
+from cv_bridge import CvBridge
+import cv2
+import numpy as np
+
+class ArucoDetector(Node):
+    def __init__(self):
+        super().__init__('aruco_detector')
+
+        self.bridge = CvBridge()
+
+        # ArUco dictionary
+        self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+        self.aruco_params = cv2.aruco.DetectorParameters()
+        self.detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.aruco_params)
+
+        # Marker size in meters
+        self.marker_size = 0.1
+
+        # Camera matrix (will be updated from camera_info)
+        self.camera_matrix = None
+        self.dist_coeffs = None
+
+        self.image_sub = self.create_subscription(
+            Image, 'camera/image_raw', self.image_callback, 10)
+        self.info_sub = self.create_subscription(
+            CameraInfo, 'camera/camera_info', self.info_callback, 10)
+
+        self.pose_pub = self.create_publisher(PoseArray, 'aruco/poses', 10)
+        self.debug_pub = self.create_publisher(Image, 'aruco/debug', 10)
+
+        self.get_logger().info('ArUco Detector started')
+
+    def info_callback(self, msg):
+        self.camera_matrix = np.array(msg.k).reshape(3, 3)
+        self.dist_coeffs = np.array(msg.d)
+
+    def image_callback(self, msg):
+        if self.camera_matrix is None:
+            return
+
+        cv_image = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
+        gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+
+        # Detect markers
+        corners, ids, rejected = self.detector.detectMarkers(gray)
+
+        pose_array = PoseArray()
+        pose_array.header = msg.header
+
+        if ids is not None:
+            # Draw detected markers
+            cv2.aruco.drawDetectedMarkers(cv_image, corners, ids)
+
+            # Estimate pose for each marker
+            for i, marker_id in enumerate(ids.flatten()):
+                # Get pose
+                rvec, tvec, _ = cv2.aruco.estimatePoseSingleMarkers(
+                    corners[i], self.marker_size,
+                    self.camera_matrix, self.dist_coeffs)
+
+                # Draw axes
+                cv2.drawFrameAxes(cv_image, self.camera_matrix, self.dist_coeffs,
+                                 rvec, tvec, self.marker_size * 0.5)
+
+                # Convert to pose message
+                pose = self.rvec_tvec_to_pose(rvec[0][0], tvec[0][0])
+                pose_array.poses.append(pose)
+
+                # Display info
+                cv2.putText(cv_image, f'ID: {marker_id}',
+                           tuple(corners[i][0][0].astype(int)),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+        self.pose_pub.publish(pose_array)
+
+        # Publish debug image
+        debug_msg = self.bridge.cv2_to_imgmsg(cv_image, 'bgr8')
+        self.debug_pub.publish(debug_msg)
+
+    def rvec_tvec_to_pose(self, rvec, tvec):
+        pose = Pose()
+        pose.position.x = tvec[0]
+        pose.position.y = tvec[1]
+        pose.position.z = tvec[2]
+
+        # Convert rotation vector to quaternion
+        rotation_matrix, _ = cv2.Rodrigues(rvec)
+
+        # Rotation matrix to quaternion
+        trace = rotation_matrix[0,0] + rotation_matrix[1,1] + rotation_matrix[2,2]
+        if trace > 0:
+            s = 0.5 / np.sqrt(trace + 1.0)
+            w = 0.25 / s
+            x = (rotation_matrix[2,1] - rotation_matrix[1,2]) * s
+            y = (rotation_matrix[0,2] - rotation_matrix[2,0]) * s
+            z = (rotation_matrix[1,0] - rotation_matrix[0,1]) * s
+        else:
+            if rotation_matrix[0,0] > rotation_matrix[1,1] and rotation_matrix[0,0] > rotation_matrix[2,2]:
+                s = 2.0 * np.sqrt(1.0 + rotation_matrix[0,0] - rotation_matrix[1,1] - rotation_matrix[2,2])
+                w = (rotation_matrix[2,1] - rotation_matrix[1,2]) / s
+                x = 0.25 * s
+                y = (rotation_matrix[0,1] + rotation_matrix[1,0]) / s
+                z = (rotation_matrix[0,2] + rotation_matrix[2,0]) / s
+            elif rotation_matrix[1,1] > rotation_matrix[2,2]:
+                s = 2.0 * np.sqrt(1.0 + rotation_matrix[1,1] - rotation_matrix[0,0] - rotation_matrix[2,2])
+                w = (rotation_matrix[0,2] - rotation_matrix[2,0]) / s
+                x = (rotation_matrix[0,1] + rotation_matrix[1,0]) / s
+                y = 0.25 * s
+                z = (rotation_matrix[1,2] + rotation_matrix[2,1]) / s
+            else:
+                s = 2.0 * np.sqrt(1.0 + rotation_matrix[2,2] - rotation_matrix[0,0] - rotation_matrix[1,1])
+                w = (rotation_matrix[1,0] - rotation_matrix[0,1]) / s
+                x = (rotation_matrix[0,2] + rotation_matrix[2,0]) / s
+                y = (rotation_matrix[1,2] + rotation_matrix[2,1]) / s
+                z = 0.25 * s
+
+        pose.orientation.x = x
+        pose.orientation.y = y
+        pose.orientation.z = z
+        pose.orientation.w = w
+
+        return pose
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = ArucoDetector()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+### Task 3: Deep Learning Object Detection
+
+Integrate YOLO for real-time object detection:
+
+```python
+# yolo_detector.py
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import Image
+from vision_msgs.msg import Detection2DArray, Detection2D, ObjectHypothesisWithPose
+from cv_bridge import CvBridge
+import cv2
+import numpy as np
+
+class YoloDetector(Node):
+    def __init__(self):
+        super().__init__('yolo_detector')
+
+        self.bridge = CvBridge()
+
+        # Load YOLO model (using OpenCV DNN)
+        self.declare_parameter('model_path', 'yolov4-tiny.weights')
+        self.declare_parameter('config_path', 'yolov4-tiny.cfg')
+        self.declare_parameter('classes_path', 'coco.names')
+        self.declare_parameter('confidence_threshold', 0.5)
+
+        model_path = self.get_parameter('model_path').value
+        config_path = self.get_parameter('config_path').value
+        classes_path = self.get_parameter('classes_path').value
+        self.conf_threshold = self.get_parameter('confidence_threshold').value
+
+        # Load class names
+        with open(classes_path, 'r') as f:
+            self.classes = f.read().strip().split('\n')
+
+        # Load network
+        self.net = cv2.dnn.readNetFromDarknet(config_path, model_path)
+        self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
+        self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
+
+        self.layer_names = self.net.getLayerNames()
+        self.output_layers = [self.layer_names[i - 1]
+                             for i in self.net.getUnconnectedOutLayers()]
+
+        self.subscription = self.create_subscription(
+            Image, 'camera/image_raw', self.image_callback, 10)
+
+        self.detection_pub = self.create_publisher(
+            Detection2DArray, 'detections', 10)
+        self.debug_pub = self.create_publisher(
+            Image, 'detection_image', 10)
+
+        self.get_logger().info('YOLO Detector started')
+
+    def image_callback(self, msg):
+        cv_image = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
+        height, width = cv_image.shape[:2]
+
+        # Prepare image for YOLO
+        blob = cv2.dnn.blobFromImage(cv_image, 1/255.0, (416, 416),
+                                     swapRB=True, crop=False)
+        self.net.setInput(blob)
+
+        # Run inference
+        outputs = self.net.forward(self.output_layers)
+
+        # Process detections
+        boxes = []
+        confidences = []
+        class_ids = []
+
+        for output in outputs:
+            for detection in output:
+                scores = detection[5:]
+                class_id = np.argmax(scores)
+                confidence = scores[class_id]
+
+                if confidence > self.conf_threshold:
+                    center_x = int(detection[0] * width)
+                    center_y = int(detection[1] * height)
+                    w = int(detection[2] * width)
+                    h = int(detection[3] * height)
+
+                    x = int(center_x - w / 2)
+                    y = int(center_y - h / 2)
+
+                    boxes.append([x, y, w, h])
+                    confidences.append(float(confidence))
+                    class_ids.append(class_id)
+
+        # Non-maximum suppression
+        indices = cv2.dnn.NMSBoxes(boxes, confidences, self.conf_threshold, 0.4)
+
+        # Create detection message
+        detection_array = Detection2DArray()
+        detection_array.header = msg.header
+
+        for i in indices.flatten() if len(indices) > 0 else []:
+            x, y, w, h = boxes[i]
+
+            detection = Detection2D()
+            detection.bbox.center.position.x = float(x + w/2)
+            detection.bbox.center.position.y = float(y + h/2)
+            detection.bbox.size_x = float(w)
+            detection.bbox.size_y = float(h)
+
+            hypothesis = ObjectHypothesisWithPose()
+            hypothesis.hypothesis.class_id = self.classes[class_ids[i]]
+            hypothesis.hypothesis.score = confidences[i]
+            detection.results.append(hypothesis)
+
+            detection_array.detections.append(detection)
+
+            # Draw on image
+            cv2.rectangle(cv_image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            label = f'{self.classes[class_ids[i]]}: {confidences[i]:.2f}'
+            cv2.putText(cv_image, label, (x, y - 10),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+        self.detection_pub.publish(detection_array)
+
+        debug_msg = self.bridge.cv2_to_imgmsg(cv_image, 'bgr8')
+        self.debug_pub.publish(debug_msg)
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = YoloDetector()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+## Summary
+
+In this chapter, we covered:
+
+- Image processing fundamentals with OpenCV
+- Color-based object detection and tracking
+- ArUco marker detection for pose estimation
+- Deep learning integration with YOLO
+- ROS2 vision message types and interfaces
+
+## Additional Resources
+
+- [OpenCV Documentation](https://docs.opencv.org/)
+- [ROS2 Vision Messages](https://github.com/ros-perception/vision_msgs)
+- [cv_bridge Tutorial](https://wiki.ros.org/cv_bridge/Tutorials)
+
+</ChatSelection>
+
+## Chapter Quiz
+
+<ChapterQuiz chapterId="week-5-computer-vision" />
