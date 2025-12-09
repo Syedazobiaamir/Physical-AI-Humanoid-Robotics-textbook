@@ -1,11 +1,10 @@
 import React, { useState, useCallback } from 'react';
+import API_BASE_URL from '@site/src/config/api';
 
 interface TranslateUrduProps {
   chapterId: string;
   onTranslationComplete?: (urduContent: string) => void;
 }
-
-const API_URL = 'http://localhost:8000';
 
 const TranslateUrdu: React.FC<TranslateUrduProps> = ({
   chapterId,
@@ -35,8 +34,8 @@ const TranslateUrdu: React.FC<TranslateUrduProps> = ({
       }
 
       const endpoint = forceRefresh
-        ? `${API_URL}/api/v1/translation/urdu/${chapterId}/refresh`
-        : `${API_URL}/api/v1/translation/urdu/${chapterId}`;
+        ? `${API_BASE_URL}/translation/urdu/${chapterId}/refresh`
+        : `${API_BASE_URL}/translation/urdu/${chapterId}`;
 
       const response = await fetch(endpoint, {
         method: forceRefresh ? 'POST' : 'GET',

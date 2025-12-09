@@ -1,6 +1,5 @@
 export { default as ChapterQuiz } from './ChapterQuiz';
 export { default as ChatSelection } from './ChatSelection';
-export { default as ChatWidget } from './ChatWidget';
 export { default as PersonalizeButton } from './PersonalizeButton';
 export { default as TranslateUrdu } from './TranslateUrdu';
 export { default as Hero } from './Hero';

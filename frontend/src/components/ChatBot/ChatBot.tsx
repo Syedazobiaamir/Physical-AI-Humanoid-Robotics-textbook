@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import styles from './ChatBot.module.css';
+import { API_BASE_URL } from '@site/src/config/api';
 
 interface Message {
   id: string;
@@ -14,12 +15,9 @@ interface ChatBotProps {
   apiBaseUrl?: string;
 }
 
-// Default API URL - can be overridden via props or docusaurus config
-const DEFAULT_API_URL = 'http://localhost:8000/api/v1';
-
 export default function ChatBot({
   chapterId,
-  apiBaseUrl = DEFAULT_API_URL
+  apiBaseUrl = API_BASE_URL
 }: ChatBotProps): JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);

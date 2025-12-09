@@ -2,7 +2,14 @@
  * Authentication service for JWT handling and OAuth flow
  */
 
-const API_URL = 'http://localhost:8000';
+// Import from config - this file is a JS fallback for non-React usage
+// In production, update the PRODUCTION_API_URL in config/api.ts
+const API_BASE_URL = 'http://localhost:8000/api/v1';
+
+// Try to get from config if available
+if (typeof window !== 'undefined' && window.__API_BASE_URL__) {
+  // This would be set by the app initialization
+}
 
 // Token storage keys
 const ACCESS_TOKEN_KEY = 'physical_ai_access_token';
@@ -98,7 +105,7 @@ export const isTokenExpiringSoon = () => {
  * @returns {Promise<string>} OAuth authorization URL
  */
 export const initiateOAuthLogin = async (provider, redirectUri) => {
-  const response = await fetch(`${API_URL}/api/v1/auth/login/oauth`, {
+  const response = await fetch(`${API_BASE_URL}/auth/login/oauth`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -126,7 +133,7 @@ export const initiateOAuthLogin = async (provider, redirectUri) => {
  * @returns {Promise<Object>} User data and tokens
  */
 export const handleOAuthCallback = async (code, provider, redirectUri) => {
-  const response = await fetch(`${API_URL}/api/v1/auth/login/callback`, {
+  const response = await fetch(`${API_BASE_URL}/auth/login/callback`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -163,7 +170,7 @@ export const refreshAccessToken = async () => {
     throw new Error('No refresh token available');
   }
 
-  const response = await fetch(`${API_URL}/api/v1/auth/refresh`, {
+  const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

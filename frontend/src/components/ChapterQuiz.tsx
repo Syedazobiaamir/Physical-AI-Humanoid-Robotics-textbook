@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '@site/src/config/api';
 
 interface QuizQuestion {
   id: string;
@@ -36,7 +37,7 @@ const ChapterQuiz: React.FC<ChapterQuizProps> = ({ chapterId }) => {
 
     try {
       // Try to fetch from backend API
-      const response = await fetch(`http://localhost:8000/api/v1/quizzes/${chapterId}`);
+      const response = await fetch(`${API_BASE_URL}/quizzes/${chapterId}`);
 
       if (response.ok) {
         const data = await response.json();
@@ -139,7 +140,7 @@ const ChapterQuiz: React.FC<ChapterQuizProps> = ({ chapterId }) => {
 
     // Try to submit to backend
     try {
-      await fetch(`http://localhost:8000/api/v1/quizzes/${chapterId}/submit`, {
+      await fetch(`${API_BASE_URL}/quizzes/${chapterId}/submit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

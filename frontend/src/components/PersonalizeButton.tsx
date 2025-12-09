@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import API_BASE_URL from '@site/src/config/api';
 
 type SkillLevel = 'beginner' | 'intermediate' | 'advanced';
 
@@ -13,8 +14,6 @@ interface PreferencesState {
   isLoading: boolean;
   error: string | null;
 }
-
-const API_URL = 'http://localhost:8000';
 
 const PersonalizeButton: React.FC<PersonalizeButtonProps> = ({
   chapterId,
@@ -59,7 +58,7 @@ const PersonalizeButton: React.FC<PersonalizeButtonProps> = ({
 
     try {
       const response = await fetch(
-        `${API_URL}/api/v1/personalization/preferences/${chapterId}`,
+        `${API_BASE_URL}/personalization/preferences/${chapterId}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -100,7 +99,7 @@ const PersonalizeButton: React.FC<PersonalizeButtonProps> = ({
 
     try {
       const response = await fetch(
-        `${API_URL}/api/v1/personalization/preferences/${chapterId}`,
+        `${API_BASE_URL}/personalization/preferences/${chapterId}`,
         {
           method: 'PUT',
           headers: {
@@ -143,7 +142,7 @@ const PersonalizeButton: React.FC<PersonalizeButtonProps> = ({
     setState((prev) => ({ ...prev, error: null }));
 
     try {
-      const response = await fetch(`${API_URL}/api/v1/personalization/adapt-content`, {
+      const response = await fetch(`${API_BASE_URL}/personalization/adapt-content`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

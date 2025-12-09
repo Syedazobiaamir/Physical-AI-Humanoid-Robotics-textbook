@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, ReactNode } from 'react';
 import { AuthContext, User } from './AuthContext';
+import API_BASE_URL from '@site/src/config/api';
 
-const API_URL = 'http://localhost:8000';
 const TOKEN_KEY = 'physical_ai_access_token';
 const REFRESH_TOKEN_KEY = 'physical_ai_refresh_token';
 const USER_KEY = 'physical_ai_user';
@@ -57,7 +57,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Refresh access token
   const refreshAccessToken = async (refreshToken: string) => {
-    const response = await fetch(`${API_URL}/api/v1/auth/refresh`, {
+    const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refresh_token: refreshToken }),
@@ -79,7 +79,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const redirectUri = `${window.location.origin}/auth/callback`;
 
-      const response = await fetch(`${API_URL}/api/v1/auth/login/oauth`, {
+      const response = await fetch(`${API_BASE_URL}/auth/login/oauth`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -114,7 +114,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const redirectUri = sessionStorage.getItem('oauth_redirect_uri') ||
         `${window.location.origin}/auth/callback`;
 
-      const response = await fetch(`${API_URL}/api/v1/auth/login/callback`, {
+      const response = await fetch(`${API_BASE_URL}/auth/login/callback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
