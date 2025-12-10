@@ -7,12 +7,24 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
+# Load environment variables (optional - Vercel uses env vars directly)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # python-dotenv not required in production
 
-# Database URL - defaults to SQLite for easy local development
-DEFAULT_SQLITE_URL = "sqlite+aiosqlite:///./physical_ai_textbook.db"
+# Check if we're on Vercel (read-only filesystem)
+IS_VERCEL = os.getenv("VERCEL", "").lower() in ("1", "true")
+
+# Database URL - defaults to in-memory SQLite for serverless
+# Use in-memory SQLite for Vercel to avoid filesystem issues
+if IS_VERCEL:
+    DEFAULT_SQLITE_URL = "sqlite+aiosqlite:///:memory:"
+else:
+    DEFAULT_SQLITE_URL = "sqlite+aiosqlite:///./physical_ai_textbook.db"
+
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 NEON_DB_URL = os.getenv("NEON_DB_URL", "")
 
@@ -33,7 +45,7 @@ elif DATABASE_URL:
         ASYNC_DATABASE_URL = DATABASE_URL
         DB_TYPE = "unknown"
 else:
-    # Default to SQLite for local development (no setup required!)
+    # Default to SQLite (in-memory for Vercel, file for local)
     ASYNC_DATABASE_URL = DEFAULT_SQLITE_URL
     DB_TYPE = "sqlite"
 
@@ -42,20 +54,27 @@ connect_args = {}
 if DB_TYPE == "sqlite":
     connect_args = {"check_same_thread": False}
 
-# Create async engine
-async_engine = create_async_engine(
-    ASYNC_DATABASE_URL,
-    echo=os.getenv("DEBUG", "false").lower() == "true",
-    future=True,
-    connect_args=connect_args if DB_TYPE == "sqlite" else {}
-)
+# Create async engine with error handling
+try:
+    async_engine = create_async_engine(
+        ASYNC_DATABASE_URL,
+        echo=os.getenv("DEBUG", "false").lower() == "true",
+        future=True,
+        connect_args=connect_args if DB_TYPE == "sqlite" else {}
+    )
 
-# Create async session factory
-AsyncSessionLocal = sessionmaker(
-    async_engine,
-    class_=AsyncSession,
-    expire_on_commit=False
-)
+    # Create async session factory
+    AsyncSessionLocal = sessionmaker(
+        async_engine,
+        class_=AsyncSession,
+        expire_on_commit=False
+    )
+except Exception as e:
+    # If database initialization fails, create a dummy engine
+    # This allows the app to start and return errors gracefully
+    print(f"Warning: Database initialization failed: {e}")
+    async_engine = None
+    AsyncSessionLocal = None
 
 # Base class for models
 Base = declarative_base()

@@ -4,10 +4,15 @@ Priority: Gemini > Anthropic > OpenAI
 """
 from typing import List, Optional
 import os
-from dotenv import load_dotenv
-from ..utils.logger import logger
 
-load_dotenv()
+# Load environment variables (optional - Vercel uses env vars directly)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # python-dotenv not required in production
+
+from ..utils.logger import logger
 
 # Check which providers are available
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
