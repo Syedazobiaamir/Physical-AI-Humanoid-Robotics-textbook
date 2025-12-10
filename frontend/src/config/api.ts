@@ -26,7 +26,8 @@
  *   7. Redeploy frontend
  */
 
-import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
+// Production backend URL (deployed on Vercel)
+const PRODUCTION_API_URL = 'https://physical-ai-humanoid-robotics-textb-psi-amber.vercel.app/api/v1';
 
 // Local development URL
 const DEVELOPMENT_API_URL = 'http://localhost:8000/api/v1';
@@ -36,41 +37,13 @@ const isProduction = typeof window !== 'undefined' &&
   !window.location.hostname.includes('localhost') &&
   !window.location.hostname.includes('127.0.0.1');
 
-// Get API URL from Docusaurus config (set via env var or hardcoded)
-// This is evaluated at build time
-let configApiUrl = '';
-try {
-  // This will be set from docusaurus.config.ts customFields
-  // Access it safely since this file might be loaded before Docusaurus context
-  if (typeof window !== 'undefined' && (window as any).__DOCUSAURUS__) {
-    configApiUrl = (window as any).__DOCUSAURUS__?.siteConfig?.customFields?.apiBaseUrl || '';
-  }
-} catch {
-  // Ignore errors during SSR or before Docusaurus is ready
-}
-
 // Get the API base URL
-// Priority: 1) Docusaurus config, 2) Development URL
-export const API_BASE_URL = (() => {
-  // In production, use configured URL
-  if (isProduction && configApiUrl) {
-    return configApiUrl;
-  }
-  return DEVELOPMENT_API_URL;
-})();
+// In production, use the deployed Vercel backend; locally use localhost
+export const API_BASE_URL = isProduction ? PRODUCTION_API_URL : DEVELOPMENT_API_URL;
 
 // Hook to get API URL within React components (preferred method)
 export function useApiUrl(): string {
-  try {
-    const { siteConfig } = useDocusaurusContext();
-    const apiUrl = siteConfig?.customFields?.apiBaseUrl as string;
-    if (isProduction && apiUrl) {
-      return apiUrl;
-    }
-  } catch {
-    // Outside of React context or Docusaurus not ready
-  }
-  return DEVELOPMENT_API_URL;
+  return API_BASE_URL;
 }
 
 // Helper to construct full API URLs
