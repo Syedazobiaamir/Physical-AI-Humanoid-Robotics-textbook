@@ -314,11 +314,13 @@ frontend/src/components/TranslateUrdu.tsx
   - Push to container registry
 - [x] Dockerize backend with `backend/Dockerfile`
 - [x] Add deployment configs for Railway, Render, Fly.io
-- [ ] Deploy backend to cloud (Railway/Render/Fly.io) - requires manual deployment
+- [x] Add Vercel deployment config for backend (`backend/vercel.json`, `backend/api/index.py`)
+- [x] Update frontend API config for dynamic backend URL (`frontend/src/config/api.ts`)
+- [ ] Deploy backend to Vercel (see deployment guide below)
 - [ ] Configure environment variables for production
 - [ ] Test deployed URLs and verify functionality
 
-**Acceptance**: Book published URL accessible (GitHub Pages), backend deployed and responsive
+**Acceptance**: Book published URL accessible (GitHub Pages/Vercel), backend deployed and responsive
 
 **Files**:
 ```
@@ -329,7 +331,23 @@ backend/docker-compose.yml
 backend/railway.json
 backend/render.yaml
 backend/fly.toml
+backend/vercel.json
+backend/api/index.py
+backend/api/requirements.txt
+backend/.vercelignore
+frontend/src/config/api.ts
 ```
+
+**Vercel Backend Deployment Guide**:
+1. Go to [Vercel Dashboard](https://vercel.com/dashboard) > "Add New Project"
+2. Import your GitHub repository
+3. **Important**: Set Root Directory to `backend`
+4. Vercel will auto-detect FastAPI - just click Deploy
+5. After deployment, copy the URL (e.g., `https://your-project.vercel.app`)
+6. Go to your **frontend** Vercel project > Settings > Environment Variables
+7. Add: `DOCUSAURUS_API_BASE_URL` = `https://your-project.vercel.app/api/v1`
+8. Redeploy the frontend to pick up the new environment variable
+9. Test the ChatBot functionality on the live site
 
 ---
 

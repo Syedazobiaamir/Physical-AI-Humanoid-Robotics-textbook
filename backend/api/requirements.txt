@@ -4,7 +4,7 @@ python-multipart==0.0.17
 pydantic==2.10.0
 pydantic-settings==2.6.0
 
-# Database - using aiosqlite for serverless (lighter weight)
+# Database - using aiosqlite for serverless (lighter than postgres)
 sqlalchemy==2.0.36
 aiosqlite==0.20.0
 

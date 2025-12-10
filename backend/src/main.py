@@ -1,14 +1,25 @@
 """
 Main FastAPI application for Physical AI & Humanoid Robotics Textbook Platform
+
+This module serves as the entry point for both local development and Vercel deployment.
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import os
-from dotenv import load_dotenv
+import sys
 
-# Load environment variables
-load_dotenv()
+# Ensure the src directory is in the Python path for Vercel deployment
+src_path = os.path.dirname(os.path.abspath(__file__))
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
+
+# Load environment variables (optional for Vercel - uses env vars directly)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # python-dotenv not required in production
 
 # Create FastAPI app
 app = FastAPI(
@@ -19,12 +30,18 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# Configure CORS
-origins = os.getenv("BACKEND_CORS_ORIGINS", "http://localhost:3000").split(",")
+# Configure CORS - include Vercel domains and localhost
+default_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://*.vercel.app",
+]
+env_origins = os.getenv("BACKEND_CORS_ORIGINS", "").split(",")
+origins = [o.strip() for o in env_origins if o.strip()] or default_origins
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],  # Allow all origins for Vercel deployment
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -37,7 +54,8 @@ async def root():
         "message": "Physical AI & Humanoid Robotics API",
         "version": "1.0.0",
         "docs": "/docs",
-        "status": "running"
+        "status": "running",
+        "platform": "Vercel" if os.getenv("VERCEL") else "local"
     }
 
 # Health check endpoint
@@ -48,8 +66,13 @@ async def health_check():
         "service": "physical-ai-api"
     }
 
-# API v1 routes
-from .api import content, rag, auth, personalization, progress, translation, quizzes
+# API v1 routes - using try/except for import flexibility
+try:
+    # Try relative imports first (for local development with package structure)
+    from .api import content, rag, auth, personalization, progress, translation, quizzes
+except ImportError:
+    # Fall back to absolute imports (for Vercel deployment)
+    from src.api import content, rag, auth, personalization, progress, translation, quizzes
 
 app.include_router(content.router, prefix="/api/v1/content", tags=["Content"])
 app.include_router(rag.router, prefix="/api/v1/rag", tags=["RAG"])

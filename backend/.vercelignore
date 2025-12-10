@@ -1,0 +1,60 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Testing
+tests/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Local development files
+.env
+.env.local
+*.db
+*.sqlite3
+
+# Docker (not needed for Vercel)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Other deployment configs (not needed for Vercel)
+railway.json
+render.yaml
+fly.toml
+nixpacks.toml
+Procfile
+
+# Alembic migrations (use direct DB setup in serverless)
+alembic/
+alembic.ini
+
+# Config files
+.flake8
+pyproject.toml
+setup.py
+setup.cfg
+
+# Git
+.git/
+.gitignore

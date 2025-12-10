@@ -16,6 +16,13 @@ const config: Config = {
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',
 
+  // Custom fields for runtime configuration
+  customFields: {
+    // Backend API URL - Set via environment variable or update directly
+    // For Vercel deployment: Set DOCUSAURUS_API_BASE_URL in Vercel dashboard
+    apiBaseUrl: process.env.DOCUSAURUS_API_BASE_URL || '',
+  },
+
   i18n: {
     defaultLocale: 'en',
     locales: ['en', 'ur'],
