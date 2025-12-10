@@ -110,7 +110,7 @@ async def get_rag_health():
 
         return RAGHealthResponse(
             status=health["status"],
-            models=health["models"],
+            models=health.get("providers", []),
             vector_count=health.get("vector_count"),
             components=health["components"]
         )
