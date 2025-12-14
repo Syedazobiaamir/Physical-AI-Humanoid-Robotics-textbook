@@ -21,7 +21,15 @@ const config: Config = {
     // Backend API URL - Set via environment variable or update directly
     // For Vercel deployment: Set DOCUSAURUS_API_BASE_URL in Vercel dashboard
     apiBaseUrl: process.env.DOCUSAURUS_API_BASE_URL || '',
+    // Clerk Publishable Key - Set via environment variable
+    // Get from https://dashboard.clerk.com
+    clerkPublishableKey: process.env.CLERK_PUBLISHABLE_KEY || '',
   },
+
+  // Client modules to inject Clerk key
+  clientModules: [
+    './src/clientModules/clerkInit.ts',
+  ],
 
   i18n: {
     defaultLocale: 'en',
@@ -59,29 +67,25 @@ const config: Config = {
           type: 'docSidebar',
           sidebarId: 'tutorialSidebar',
           position: 'left',
-          label: 'Textbook',
+          label: 'Book Chapters',
         },
-        {
-          href: 'https://github.com/your-username/physical-ai-textbook',
-          label: 'GitHub',
-          position: 'right',
-        },
+        
       ],
     },
     footer: {
-      style: 'dark',
+      style: 'light',
       links: [
         {
-          title: 'Docs',
+          title: 'About Book',
           items: [
             {
-              label: 'Textbook',
+              label: 'Book Chapters',
               to: '/docs/intro',
             },
           ],
         },
         {
-          title: 'Community',
+          title: 'Resources',
           items: [
             {
               label: 'GitHub',

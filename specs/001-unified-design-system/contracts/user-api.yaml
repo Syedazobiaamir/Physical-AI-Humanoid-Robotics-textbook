@@ -1,0 +1,340 @@
+openapi: 3.0.3
+info:
+  title: User Profile & Personalization API
+  description: User profiles, preferences, and content personalization
+  version: 1.0.0
+
+servers:
+  - url: /api/user
+    description: User API base path
+
+paths:
+  /profile:
+    get:
+      summary: Get current user's profile
+      operationId: getProfile
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          description: Not authenticated
+        '404':
+          description: Profile not found (needs setup)
+
+    post:
+      summary: Create user profile (first-time setup)
+      operationId: createProfile
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileSetup'
+      responses:
+        '201':
+          description: Profile created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '400':
+          description: Invalid input
+        '401':
+          description: Not authenticated
+        '409':
+          description: Profile already exists
+
+    patch:
+      summary: Update user profile
+      operationId: updateProfile
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileUpdate'
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '400':
+          description: Invalid input
+        '401':
+          description: Not authenticated
+        '404':
+          description: Profile not found
+
+  /personalize:
+    post:
+      summary: Personalize chapter content
+      operationId: personalizeContent
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                chapter_id:
+                  type: string
+                  format: uuid
+                personalization_type:
+                  type: string
+                  enum: [beginner, hardware]
+                  description: Type of personalization to apply
+              required:
+                - chapter_id
+                - personalization_type
+      responses:
+        '200':
+          description: Personalized content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonalizedContent'
+        '400':
+          description: Invalid request
+        '401':
+          description: Not authenticated
+        '404':
+          description: Chapter not found
+        '503':
+          description: Personalization service unavailable
+
+  /translate:
+    post:
+      summary: Translate chapter content to Urdu
+      operationId: translateContent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                chapter_id:
+                  type: string
+                  format: uuid
+                content:
+                  type: string
+                  maxLength: 50000
+                  description: Content to translate (optional, uses chapter content if not provided)
+              required:
+                - chapter_id
+      responses:
+        '200':
+          description: Translated content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranslatedContent'
+        '400':
+          description: Invalid request
+        '404':
+          description: Chapter not found
+        '503':
+          description: Translation service unavailable
+
+  /preferences:
+    get:
+      summary: Get user preferences
+      operationId: getPreferences
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User preferences
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPreferences'
+        '401':
+          description: Not authenticated
+
+    patch:
+      summary: Update user preferences
+      operationId: updatePreferences
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreferencesUpdate'
+      responses:
+        '200':
+          description: Preferences updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPreferences'
+        '400':
+          description: Invalid input
+        '401':
+          description: Not authenticated
+
+components:
+  schemas:
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+          nullable: true
+        software_background:
+          type: string
+          nullable: true
+        hardware_background:
+          type: string
+          nullable: true
+        skill_level:
+          type: string
+          enum: [beginner, intermediate, advanced]
+        language_preference:
+          type: string
+          enum: [en, ur]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ProfileSetup:
+      type: object
+      properties:
+        display_name:
+          type: string
+          maxLength: 100
+        software_background:
+          type: string
+          maxLength: 2000
+          description: Description of software experience
+        hardware_background:
+          type: string
+          maxLength: 2000
+          description: Description of hardware experience
+        skill_level:
+          type: string
+          enum: [beginner, intermediate, advanced]
+        language_preference:
+          type: string
+          enum: [en, ur]
+      required:
+        - skill_level
+        - language_preference
+
+    ProfileUpdate:
+      type: object
+      properties:
+        display_name:
+          type: string
+          maxLength: 100
+        software_background:
+          type: string
+          maxLength: 2000
+        hardware_background:
+          type: string
+          maxLength: 2000
+        skill_level:
+          type: string
+          enum: [beginner, intermediate, advanced]
+        language_preference:
+          type: string
+          enum: [en, ur]
+
+    UserPreferences:
+      type: object
+      properties:
+        skill_level:
+          type: string
+          enum: [beginner, intermediate, advanced]
+        language_preference:
+          type: string
+          enum: [en, ur]
+        auto_personalize:
+          type: boolean
+          default: false
+        auto_translate:
+          type: boolean
+          default: false
+
+    PreferencesUpdate:
+      type: object
+      properties:
+        skill_level:
+          type: string
+          enum: [beginner, intermediate, advanced]
+        language_preference:
+          type: string
+          enum: [en, ur]
+        auto_personalize:
+          type: boolean
+        auto_translate:
+          type: boolean
+
+    PersonalizedContent:
+      type: object
+      properties:
+        chapter_id:
+          type: string
+          format: uuid
+        personalization_type:
+          type: string
+          enum: [beginner, hardware]
+        content:
+          type: string
+        agent_used:
+          type: string
+        cached:
+          type: boolean
+        generated_at:
+          type: string
+          format: date-time
+
+    TranslatedContent:
+      type: object
+      properties:
+        chapter_id:
+          type: string
+          format: uuid
+        original_language:
+          type: string
+          default: en
+        target_language:
+          type: string
+          default: ur
+        content:
+          type: string
+        cached:
+          type: boolean
+        generated_at:
+          type: string
+          format: date-time
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer

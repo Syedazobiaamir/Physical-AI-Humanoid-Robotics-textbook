@@ -9,6 +9,7 @@ import ModuleCard, {
   VLAIcon,
   CapstoneIcon,
 } from '../components/ModuleCard';
+import { CourseRoadmap } from '../components/landing';
 import styles from './index.module.css';
 
 const modules: ModuleData[] = [
@@ -130,6 +131,7 @@ export default function Home(): JSX.Element {
             </div>
           </div>
         </section>
+        <CourseRoadmap />
         <Features />
       </main>
     </Layout>

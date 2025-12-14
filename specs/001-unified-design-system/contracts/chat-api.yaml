@@ -1,0 +1,242 @@
+openapi: 3.0.3
+info:
+  title: RAG Chatbot API
+  description: API for the Physical AI Course RAG chatbot
+  version: 1.0.0
+
+servers:
+  - url: /api/chat
+    description: Chat API base path
+
+paths:
+  /sessions:
+    post:
+      summary: Create a new chat session
+      operationId: createSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                chapter_id:
+                  type: string
+                  format: uuid
+                  description: Optional chapter context
+              required: []
+      responses:
+        '201':
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatSession'
+        '401':
+          description: Unauthorized (for authenticated sessions)
+
+  /sessions/{session_id}:
+    get:
+      summary: Get session details
+      operationId: getSession
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Session details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatSession'
+        '404':
+          description: Session not found
+
+    delete:
+      summary: Close a chat session
+      operationId: closeSession
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Session closed
+        '404':
+          description: Session not found
+
+  /sessions/{session_id}/messages:
+    get:
+      summary: Get messages in a session
+      operationId: getMessages
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+        - name: before
+          in: query
+          description: Cursor for pagination (message ID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChatMessage'
+                  has_more:
+                    type: boolean
+
+    post:
+      summary: Send a message and get AI response
+      operationId: sendMessage
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+                  minLength: 1
+                  maxLength: 4000
+                  description: User message content
+                selected_context:
+                  type: string
+                  maxLength: 2000
+                  description: User-selected text from chapter
+              required:
+                - content
+      responses:
+        '200':
+          description: AI response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatMessage'
+        '400':
+          description: Invalid request
+        '404':
+          description: Session not found
+        '429':
+          description: Rate limited
+        '503':
+          description: AI service unavailable
+
+  /sessions/{session_id}/messages/stream:
+    post:
+      summary: Send a message and stream AI response
+      operationId: sendMessageStream
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+                  minLength: 1
+                  maxLength: 4000
+                selected_context:
+                  type: string
+                  maxLength: 2000
+              required:
+                - content
+      responses:
+        '200':
+          description: Streamed AI response
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: SSE stream of response chunks
+
+components:
+  schemas:
+    ChatSession:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+          nullable: true
+        chapter_id:
+          type: string
+          format: uuid
+          nullable: true
+        chapter_title:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        message_count:
+          type: integer
+
+    ChatMessage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+        selected_context:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: Optional - for authenticated users

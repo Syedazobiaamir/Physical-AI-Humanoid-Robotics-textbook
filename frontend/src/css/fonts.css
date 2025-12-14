@@ -1,0 +1,101 @@
+/**
+ * Web Fonts for Physical AI & Humanoid Robotics Textbook
+ *
+ * Font Stack (Updated Design System):
+ * - Inter / Poppins: Headings (SemiBold)
+ * - Inter: Body text (Regular)
+ * - JetBrains Mono: Code blocks
+ * - Noto Nastaliq Urdu: Urdu translation
+ */
+
+/* Inter - Headings & Body */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* Poppins - Alternative Headings */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
+/* JetBrains Mono - Code */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+/* Noto Nastaliq Urdu - Urdu Translation */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;500;600;700&display=swap');
+
+/* Font family CSS variables */
+:root {
+  --font-heading: 'Inter', 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, 'Courier New', monospace;
+  --font-urdu: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', serif;
+}
+
+/* Apply fonts globally */
+html {
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+/* Typography Scale */
+h1 { font-size: clamp(2.5rem, 5vw, 4rem); }
+h2 { font-size: clamp(2rem, 4vw, 3rem); }
+h3 { font-size: clamp(1.5rem, 3vw, 2rem); }
+h4 { font-size: 1.25rem; }
+h5 { font-size: 1.125rem; }
+h6 { font-size: 1rem; }
+
+body {
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+code, pre, kbd, samp {
+  font-family: var(--font-mono);
+}
+
+/* Urdu text styles */
+.urdu-text,
+[lang="ur"] {
+  font-family: var(--font-urdu);
+  direction: rtl;
+  text-align: right;
+}
+
+/* Docusaurus overrides for fonts */
+:root {
+  --ifm-font-family-base: var(--font-body);
+  --ifm-heading-font-family: var(--font-heading);
+  --ifm-font-family-monospace: var(--font-mono);
+}
+
+/* Code block font improvements */
+.prism-code {
+  font-family: var(--font-mono) !important;
+  font-variant-ligatures: none;
+  font-feature-settings: 'liga' 0;
+}
+
+/* Navbar title uses heading font */
+.navbar__title {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 1.1rem;
+  letter-spacing: -0.01em;
+}
+
+/* Table of contents uses body font with slightly smaller size */
+.table-of-contents {
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+}
+
+/* Search input uses body font */
+.DocSearch-Input {
+  font-family: var(--font-body);
+}

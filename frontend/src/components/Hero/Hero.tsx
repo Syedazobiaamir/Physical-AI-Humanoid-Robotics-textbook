@@ -10,8 +10,8 @@ interface HeroProps {
 }
 
 export default function Hero({
-  title = 'Physical AI & Humanoid Robotics',
-  tagline = 'Master robotics with ROS2, simulation, and AI-powered learning. An interactive textbook for the next generation of robotics engineers.',
+  title = 'Learn Physical AI & Humanoid Robotics',
+  tagline = 'An AI-native textbook for the future of intelligent machines. Master robotics with ROS2, simulation, and cutting-edge AI techniques.',
   ctaText = 'Start Learning',
   ctaLink = '/docs/intro',
 }: HeroProps): JSX.Element {

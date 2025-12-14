@@ -1,11 +1,16 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, ReactNode } from 'react';
+
+interface ChatSelectionProps {
+  children?: ReactNode;
+  chapterId?: string;
+}
 
 /**
  * ChatSelection component - Handles text selection and dispatches events to ChatBot
- * This component only handles selection detection and event emission.
+ * Wraps chapter content and enables text selection for chat queries.
  * The actual chat UI is handled by the ChatBot component.
  */
-const ChatSelection: React.FC = () => {
+const ChatSelection: React.FC<ChatSelectionProps> = ({ children, chapterId }) => {
   useEffect(() => {
     let selectionTimeout: NodeJS.Timeout | null = null;
 
@@ -23,7 +28,10 @@ const ChatSelection: React.FC = () => {
         if (selectedText && selectedText.length > 3) {
           // Dispatch custom event that ChatBot listens for
           const event = new CustomEvent('chatbot-selection-query', {
-            detail: { text: selectedText }
+            detail: {
+              text: selectedText,
+              chapterId: chapterId
+            }
           });
           window.dispatchEvent(event);
         }
@@ -38,10 +46,14 @@ const ChatSelection: React.FC = () => {
         clearTimeout(selectionTimeout);
       }
     };
-  }, []);
+  }, [chapterId]);
 
-  // This component doesn't render any UI - it only handles selection events
-  return null;
+  // If no children, just attach the event listener globally (used as side-effect component)
+  // If children provided, wrap them in a div
+  if (!children) {
+    return null;
+  }
+  return <div className="chat-selection-wrapper">{children}</div>;
 };
 
 export default ChatSelection;

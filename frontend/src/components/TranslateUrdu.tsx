@@ -1,63 +1,59 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import API_BASE_URL from '@site/src/config/api';
 
 interface TranslateUrduProps {
-  chapterId: string;
-  onTranslationComplete?: (urduContent: string) => void;
+  chapterId?: string;
 }
 
-const TranslateUrdu: React.FC<TranslateUrduProps> = ({
-  chapterId,
-  onTranslationComplete,
-}) => {
+const TranslateUrdu: React.FC<TranslateUrduProps> = ({ chapterId }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [urduContent, setUrduContent] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
-  const getToken = useCallback(() => {
-    return localStorage.getItem('physical_ai_access_token');
+  // Get the chapter content from the page
+  const getChapterContent = useCallback(() => {
+    const articleElement = document.querySelector('article.markdown');
+    if (articleElement) {
+      return articleElement.textContent || '';
+    }
+    return '';
   }, []);
 
-  const fetchTranslation = async (forceRefresh: boolean = false) => {
+  const translateContent = async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const token = getToken();
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
+      const content = getChapterContent();
+      if (!content.trim()) {
+        setError('No content found to translate');
+        setIsLoading(false);
+        return;
       }
 
-      const endpoint = forceRefresh
-        ? `${API_BASE_URL}/translation/urdu/${chapterId}/refresh`
-        : `${API_BASE_URL}/translation/urdu/${chapterId}`;
-
-      const response = await fetch(endpoint, {
-        method: forceRefresh ? 'POST' : 'GET',
-        headers,
+      const response = await fetch(`${API_BASE_URL}/translation/urdu`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content: content.substring(0, 10000), // Limit content size
+          content_type: 'markdown',
+          preserve_formatting: true,
+        }),
       });
 
       if (response.ok) {
         const data = await response.json();
         setUrduContent(data.urdu_content);
-        setLastUpdated(data.last_updated);
         setIsExpanded(true);
-
-        if (onTranslationComplete) {
-          onTranslationComplete(data.urdu_content);
-        }
-      } else if (response.status === 404) {
-        setError('Chapter not found');
       } else {
-        throw new Error('Translation failed');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Translation failed');
       }
     } catch (err) {
-      setError('Failed to load Urdu translation. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to translate. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -65,19 +61,16 @@ const TranslateUrdu: React.FC<TranslateUrduProps> = ({
 
   const handleTranslateClick = () => {
     if (urduContent && isExpanded) {
-      // Toggle off
       setIsExpanded(false);
     } else if (urduContent) {
-      // Show existing translation
       setIsExpanded(true);
     } else {
-      // Fetch new translation
-      fetchTranslation();
+      translateContent();
     }
   };
 
   const handleRefresh = () => {
-    fetchTranslation(true);
+    translateContent();
   };
 
   const copyToClipboard = async () => {
@@ -85,7 +78,6 @@ const TranslateUrdu: React.FC<TranslateUrduProps> = ({
       try {
         await navigator.clipboard.writeText(urduContent);
       } catch {
-        // Fallback for older browsers
         const textArea = document.createElement('textarea');
         textArea.value = urduContent;
         document.body.appendChild(textArea);
@@ -127,7 +119,7 @@ const TranslateUrdu: React.FC<TranslateUrduProps> = ({
               <path d="M14 18h6" />
             </svg>
             <span>اردو</span>
-            <span className="urdu-label">Urdu</span>
+            <span className="urdu-label">Translate to Urdu</span>
           </>
         )}
       </button>
@@ -142,7 +134,7 @@ const TranslateUrdu: React.FC<TranslateUrduProps> = ({
                 <path d="M2 5h12" />
                 <path d="M7 2h1" />
               </svg>
-              اردو ترجمہ
+              اردو ترجمہ (Urdu Translation)
             </h4>
             <div className="urdu-panel-actions">
               <button
@@ -181,12 +173,6 @@ const TranslateUrdu: React.FC<TranslateUrduProps> = ({
             </div>
           </div>
 
-          {lastUpdated && (
-            <div className="translation-meta">
-              Last updated: {new Date(lastUpdated).toLocaleDateString()}
-            </div>
-          )}
-
           <div className="urdu-content" dir="rtl" lang="ur">
             {urduContent}
           </div>
@@ -206,29 +192,31 @@ const TranslateUrdu: React.FC<TranslateUrduProps> = ({
 
       <style>{`
         .translate-urdu-container {
-          position: relative;
-          margin: 1rem 0;
+          position: fixed;
+          bottom: 100px;
+          right: 24px;
+          z-index: 999;
         }
 
         .translate-urdu-button {
           display: inline-flex;
           align-items: center;
           gap: 0.5rem;
-          padding: 0.5rem 1rem;
+          padding: 0.75rem 1.25rem;
           background: linear-gradient(135deg, #047857, #065f46);
           color: white;
           border: none;
-          border-radius: 20px;
+          border-radius: 24px;
           cursor: pointer;
-          font-size: 0.875rem;
+          font-size: 0.9rem;
           font-weight: 500;
-          transition: all 0.2s;
-          box-shadow: 0 2px 8px rgba(4, 120, 87, 0.3);
+          transition: all 0.3s ease;
+          box-shadow: 0 4px 15px rgba(4, 120, 87, 0.4);
         }
 
         .translate-urdu-button:hover:not(:disabled) {
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(4, 120, 87, 0.4);
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(4, 120, 87, 0.5);
         }
 
         .translate-urdu-button.active {
@@ -242,7 +230,7 @@ const TranslateUrdu: React.FC<TranslateUrduProps> = ({
 
         .urdu-label {
           font-size: 0.75rem;
-          opacity: 0.8;
+          opacity: 0.9;
         }
 
         .spinner {
@@ -261,19 +249,36 @@ const TranslateUrdu: React.FC<TranslateUrduProps> = ({
         }
 
         .urdu-content-panel {
-          margin-top: 1rem;
+          position: fixed;
+          bottom: 160px;
+          right: 24px;
+          width: 400px;
+          max-width: calc(100vw - 48px);
+          max-height: 60vh;
           background: var(--ifm-background-color, #fff);
           border: 1px solid var(--ifm-color-emphasis-200, #e5e5e5);
-          border-radius: 12px;
+          border-radius: 16px;
           overflow: hidden;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+          animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes slideUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
         }
 
         .urdu-panel-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 0.875rem 1rem;
+          padding: 1rem 1.25rem;
           background: linear-gradient(135deg, #047857, #065f46);
           color: white;
         }
@@ -284,7 +289,7 @@ const TranslateUrdu: React.FC<TranslateUrduProps> = ({
           align-items: center;
           gap: 0.5rem;
           font-size: 1rem;
-          font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', serif;
+          font-weight: 600;
         }
 
         .urdu-panel-actions {
@@ -295,11 +300,14 @@ const TranslateUrdu: React.FC<TranslateUrduProps> = ({
         .action-btn {
           background: rgba(255, 255, 255, 0.2);
           border: none;
-          border-radius: 6px;
-          padding: 0.375rem;
+          border-radius: 8px;
+          padding: 0.5rem;
           cursor: pointer;
           color: white;
           transition: background 0.2s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
 
         .action-btn:hover:not(:disabled) {
@@ -311,40 +319,16 @@ const TranslateUrdu: React.FC<TranslateUrduProps> = ({
           cursor: not-allowed;
         }
 
-        .translation-meta {
-          padding: 0.5rem 1rem;
-          background: var(--ifm-color-emphasis-100, #f5f5f5);
-          font-size: 0.75rem;
-          color: var(--ifm-color-emphasis-600, #666);
-          border-bottom: 1px solid var(--ifm-color-emphasis-200, #e5e5e5);
-        }
-
         .urdu-content {
           padding: 1.5rem;
-          font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Urdu Typesetting', serif;
+          font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', serif;
           font-size: 1.1rem;
           line-height: 2.2;
           color: var(--ifm-font-color-base, #333);
           text-align: right;
           white-space: pre-wrap;
-        }
-
-        .urdu-content code {
-          direction: ltr;
-          unicode-bidi: embed;
-          font-family: monospace;
-          background: var(--ifm-color-emphasis-100, #f5f5f5);
-          padding: 0.125rem 0.375rem;
-          border-radius: 4px;
-        }
-
-        .urdu-content pre {
-          direction: ltr;
-          text-align: left;
-          background: var(--ifm-color-emphasis-100, #f5f5f5);
-          padding: 1rem;
-          border-radius: 8px;
-          overflow-x: auto;
+          max-height: calc(60vh - 60px);
+          overflow-y: auto;
         }
 
         .error-message {
@@ -352,24 +336,50 @@ const TranslateUrdu: React.FC<TranslateUrduProps> = ({
           align-items: center;
           gap: 0.5rem;
           margin-top: 0.75rem;
-          padding: 0.75rem;
-          background: #f8d7da;
-          color: #842029;
-          border-radius: 8px;
+          padding: 0.75rem 1rem;
+          background: #fee2e2;
+          color: #dc2626;
+          border-radius: 12px;
           font-size: 0.875rem;
+          position: fixed;
+          bottom: 160px;
+          right: 24px;
         }
 
         @media (max-width: 768px) {
-          .urdu-content {
-            padding: 1rem;
-            font-size: 1rem;
-            line-height: 2;
+          .translate-urdu-container {
+            bottom: 90px;
+            right: 16px;
           }
 
-          .urdu-panel-header {
-            flex-direction: column;
-            gap: 0.75rem;
+          .translate-urdu-button {
+            padding: 0.625rem 1rem;
+            font-size: 0.85rem;
           }
+
+          .urdu-label {
+            display: none;
+          }
+
+          .urdu-content-panel {
+            bottom: 150px;
+            right: 16px;
+            width: calc(100vw - 32px);
+          }
+        }
+
+        [data-theme='dark'] .urdu-content-panel {
+          background: var(--ifm-background-color);
+          border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        [data-theme='dark'] .urdu-content {
+          color: var(--ifm-font-color-base);
+        }
+
+        [data-theme='dark'] .error-message {
+          background: rgba(220, 38, 38, 0.2);
+          color: #fca5a5;
         }
       `}</style>
     </div>
