@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import styles from './ChatBot.module.css';
-import { API_BASE_URL } from '@site/src/config/api';
+import API_BASE_URL from '@site/src/config/api';
 
 interface Message {
   id: string;

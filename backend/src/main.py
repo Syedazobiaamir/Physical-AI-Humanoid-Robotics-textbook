@@ -6,6 +6,7 @@ This module serves as the entry point for both local development and Vercel depl
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from contextlib import asynccontextmanager
 import os
 import sys
 
@@ -21,13 +22,34 @@ try:
 except ImportError:
     pass  # python-dotenv not required in production
 
-# Create FastAPI app
+# Import database initialization
+try:
+    from .database.base import init_db, get_db_info
+except ImportError:
+    from src.database.base import init_db, get_db_info
+
+# Lifespan context manager for startup/shutdown events
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Initialize database tables
+    try:
+        await init_db()
+        db_info = get_db_info()
+        print(f"Database initialized: {db_info['type']} - configured: {db_info['is_configured']}")
+    except Exception as e:
+        print(f"Warning: Database initialization skipped: {e}")
+    yield
+    # Shutdown: cleanup if needed
+    pass
+
+# Create FastAPI app with lifespan
 app = FastAPI(
     title="Physical AI & Humanoid Robotics API",
     description="Backend API for the AI-native textbook platform",
     version="1.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    lifespan=lifespan
 )
 
 # Configure CORS - include Vercel domains and localhost
@@ -61,9 +83,14 @@ async def root():
 # Health check endpoint
 @app.get("/health")
 async def health_check():
+    db_info = get_db_info()
     return {
         "status": "healthy",
-        "service": "physical-ai-api"
+        "service": "physical-ai-api",
+        "database": {
+            "type": db_info["type"],
+            "configured": db_info["is_configured"]
+        }
     }
 
 # API v1 routes - using try/except for import flexibility
