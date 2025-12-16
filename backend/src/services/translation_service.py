@@ -294,28 +294,84 @@ class TranslationService:
             return self._placeholder_translation(content)
 
     async def _translate_with_gemini(self, content: str) -> str:
-        """Translate using Google Gemini API"""
+        """Translate using Google Gemini API with chunking for long content"""
         import google.generativeai as genai
 
         genai.configure(api_key=self.gemini_api_key)
-        model = genai.GenerativeModel(os.getenv("GEMINI_MODEL", "gemini-2.5-flash"))
+        model = genai.GenerativeModel(os.getenv("GEMINI_MODEL", "gemini-2.0-flash"))
 
-        prompt = f"""You are a professional translator specializing in technical content translation from English to Urdu.
+        # For long content, split into chunks and translate each
+        # Use smaller chunks to ensure complete translations
+        MAX_CHUNK_SIZE = 2000  # Characters per chunk (smaller for better quality)
 
-Rules:
-1. Translate the content to Urdu while preserving markdown formatting
-2. Keep all technical terms in English with Urdu transliteration in parentheses
-3. Preserve code block placeholders (<<<CODE_BLOCK_N>>>) exactly as they are
-4. Preserve heading placeholders (<<<HEADING_N>>>) exactly as they are
-5. Maintain the same paragraph structure
-6. Use formal Urdu suitable for educational content
+        if len(content) <= MAX_CHUNK_SIZE:
+            # Short content - translate directly
+            return await self._translate_chunk_gemini(model, content)
+        else:
+            # Long content - split into paragraphs and translate in chunks
+            logger.info(f"Long content detected ({len(content)} chars), splitting into chunks")
+            return await self._translate_in_chunks_gemini(model, content, MAX_CHUNK_SIZE)
 
-Translate the following to Urdu:
+    async def _translate_chunk_gemini(self, model, content: str) -> str:
+        """Translate a single chunk using Gemini"""
+        import google.generativeai as genai
 
-{content}"""
+        prompt = f"""You are a professional Urdu translator for educational content.
 
-        response = model.generate_content(prompt)
+CRITICAL RULES - YOU MUST FOLLOW:
+1. Translate EVERY SINGLE WORD to Urdu - do NOT skip anything
+2. Do NOT summarize - translate the COMPLETE text word by word
+3. Keep technical terms in English with Urdu transliteration: Python (پائتھون)
+4. Preserve all formatting: headers, lists, bold, italic
+5. Keep placeholders exactly: <<<CODE_BLOCK_N>>> and <<<HEADING_N>>>
+6. Use formal educational Urdu
+7. The translation MUST be the same length or longer than the original
+
+INPUT TEXT TO TRANSLATE COMPLETELY:
+{content}
+
+COMPLETE URDU TRANSLATION:"""
+
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(
+                max_output_tokens=16384,  # Maximum output for complete translation
+                temperature=0.2,  # Lower temperature for accuracy
+            )
+        )
         return response.text
+
+    async def _translate_in_chunks_gemini(self, model, content: str, max_chunk_size: int) -> str:
+        """Split long content into chunks and translate each"""
+        # Split by double newlines (paragraphs)
+        paragraphs = content.split('\n\n')
+
+        chunks = []
+        current_chunk = ""
+
+        for para in paragraphs:
+            # If adding this paragraph exceeds the limit, save current chunk and start new one
+            if len(current_chunk) + len(para) + 2 > max_chunk_size and current_chunk:
+                chunks.append(current_chunk.strip())
+                current_chunk = para
+            else:
+                current_chunk = current_chunk + "\n\n" + para if current_chunk else para
+
+        # Don't forget the last chunk
+        if current_chunk.strip():
+            chunks.append(current_chunk.strip())
+
+        logger.info(f"Translating {len(chunks)} chunks")
+
+        # Translate each chunk
+        translated_chunks = []
+        for i, chunk in enumerate(chunks):
+            logger.info(f"Translating chunk {i+1}/{len(chunks)} ({len(chunk)} chars)")
+            translated = await self._translate_chunk_gemini(model, chunk)
+            translated_chunks.append(translated)
+
+        # Combine all translated chunks
+        return '\n\n'.join(translated_chunks)
 
     async def _translate_with_openai(self, content: str) -> str:
         """Translate using OpenAI API"""

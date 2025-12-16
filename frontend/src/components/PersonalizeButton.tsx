@@ -202,6 +202,9 @@ const PersonalizeButton: React.FC<PersonalizeButtonProps> = ({
         className="personalize-button"
         onClick={() => setIsOpen(!isOpen)}
         title="Personalize content for your skill level"
+        aria-label="Personalize content for your skill level"
+        aria-expanded={isOpen}
+        aria-haspopup="dialog"
       >
         <svg
           width="20"
@@ -220,11 +223,11 @@ const PersonalizeButton: React.FC<PersonalizeButtonProps> = ({
       </button>
 
       {isOpen && (
-        <div className="personalize-modal-overlay" onClick={() => setIsOpen(false)}>
-          <div className="personalize-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="personalize-modal-overlay" onClick={() => setIsOpen(false)} role="presentation">
+          <div className="personalize-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="personalize-modal-title">
             <div className="personalize-header">
-              <h3>Personalize Content</h3>
-              <button className="close-btn" onClick={() => setIsOpen(false)}>
+              <h3 id="personalize-modal-title">Personalize Content</h3>
+              <button className="close-btn" onClick={() => setIsOpen(false)} aria-label="Close personalization dialog">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <line x1="18" y1="6" x2="6" y2="18"></line>
                   <line x1="6" y1="6" x2="18" y2="18"></line>

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import API_BASE_URL from '@site/src/config/api';
 
 interface TranslateUrduProps {
@@ -9,14 +9,34 @@ const TranslateUrdu: React.FC<TranslateUrduProps> = ({ chapterId }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [urduContent, setUrduContent] = useState<string | null>(null);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [showTranslation, setShowTranslation] = useState(false);
 
   // Get the chapter content from the page
   const getChapterContent = useCallback(() => {
-    const articleElement = document.querySelector('article.markdown');
-    if (articleElement) {
-      return articleElement.textContent || '';
+    // Try multiple selectors that Docusaurus uses
+    const selectors = [
+      'article.markdown',
+      '.theme-doc-markdown',
+      'article[class*="docItemContainer"]',
+      '.markdown',
+      'article',
+      '[class*="docItemCol"] .markdown',
+      'main article',
+      '.docMainContainer article'
+    ];
+
+    for (const selector of selectors) {
+      const element = document.querySelector(selector);
+      if (element && element.textContent?.trim()) {
+        // Get text content - increased limit for full chapters
+        const text = element.textContent || '';
+        console.log(`Found content using selector: ${selector}, length: ${text.length}`);
+        // Limit to 50000 characters (approximately 10-15 pages of content)
+        return text.substring(0, 50000);
+      }
     }
+
+    console.log('No content found with any selector');
     return '';
   }, []);
 
@@ -25,12 +45,22 @@ const TranslateUrdu: React.FC<TranslateUrduProps> = ({ chapterId }) => {
     setError(null);
 
     try {
-      const content = getChapterContent();
+      // Wait a moment for content to render if needed
+      let content = getChapterContent();
+
+      // Retry after a short delay if no content found
       if (!content.trim()) {
-        setError('No content found to translate');
+        await new Promise(resolve => setTimeout(resolve, 500));
+        content = getChapterContent();
+      }
+
+      if (!content.trim()) {
+        setError('No content found to translate. Please wait for the page to fully load and try again.');
         setIsLoading(false);
         return;
       }
+
+      console.log('Translating content, length:', content.length);
 
       const response = await fetch(`${API_BASE_URL}/translation/urdu`, {
         method: 'POST',
@@ -38,21 +68,26 @@ const TranslateUrdu: React.FC<TranslateUrduProps> = ({ chapterId }) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          content: content.substring(0, 10000), // Limit content size
-          content_type: 'markdown',
+          content: content,
+          content_type: 'text',
           preserve_formatting: true,
         }),
       });
 
+      console.log('Response status:', response.status);
+
       if (response.ok) {
         const data = await response.json();
+        console.log('Translation received:', data);
         setUrduContent(data.urdu_content);
-        setIsExpanded(true);
+        setShowTranslation(true);
       } else {
-        const errorData = await response.json().catch(() => ({}));
+        const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+        console.error('Translation error:', errorData);
         throw new Error(errorData.detail || 'Translation failed');
       }
     } catch (err) {
+      console.error('Translation error:', err);
       setError(err instanceof Error ? err.message : 'Failed to translate. Please try again.');
     } finally {
       setIsLoading(false);
@@ -60,326 +95,242 @@ const TranslateUrdu: React.FC<TranslateUrduProps> = ({ chapterId }) => {
   };
 
   const handleTranslateClick = () => {
-    if (urduContent && isExpanded) {
-      setIsExpanded(false);
+    if (showTranslation) {
+      setShowTranslation(false);
     } else if (urduContent) {
-      setIsExpanded(true);
+      setShowTranslation(true);
     } else {
       translateContent();
     }
   };
 
-  const handleRefresh = () => {
-    translateContent();
-  };
-
-  const copyToClipboard = async () => {
-    if (urduContent) {
-      try {
-        await navigator.clipboard.writeText(urduContent);
-      } catch {
-        const textArea = document.createElement('textarea');
-        textArea.value = urduContent;
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
-      }
-    }
-  };
-
   return (
-    <div className="translate-urdu-container">
+    <div className="translate-urdu-wrapper">
+      {/* Translate Button */}
       <button
-        className={`translate-urdu-button ${isExpanded ? 'active' : ''}`}
+        className={`translate-btn ${showTranslation ? 'active' : ''}`}
         onClick={handleTranslateClick}
         disabled={isLoading}
-        title="Translate to Urdu"
+        aria-label={showTranslation ? "Show original English content" : "Translate to Urdu"}
+        aria-expanded={showTranslation}
+        aria-busy={isLoading}
       >
         {isLoading ? (
           <>
             <span className="spinner"></span>
-            <span>Translating...</span>
+            <span>Translating full chapter to Urdu... Please wait</span>
+          </>
+        ) : showTranslation ? (
+          <>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M3 12h18M3 6h18M3 18h18"/>
+            </svg>
+            <span>Show Original</span>
           </>
         ) : (
           <>
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="m5 8 6 6" />
-              <path d="m4 14 6-6 2-3" />
-              <path d="M2 5h12" />
-              <path d="M7 2h1" />
-              <path d="m22 22-5-10-5 10" />
-              <path d="M14 18h6" />
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="m5 8 6 6M4 14l6-6 2-3M2 5h12M7 2h1M22 22l-5-10-5 10M14 18h6"/>
             </svg>
-            <span>اردو</span>
-            <span className="urdu-label">Translate to Urdu</span>
+            <span>اردو میں ترجمہ کریں</span>
+            <span className="btn-label">(Translate to Urdu)</span>
           </>
         )}
       </button>
 
-      {isExpanded && urduContent && (
-        <div className="urdu-content-panel">
-          <div className="urdu-panel-header">
-            <h4>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="m5 8 6 6" />
-                <path d="m4 14 6-6 2-3" />
-                <path d="M2 5h12" />
-                <path d="M7 2h1" />
-              </svg>
-              اردو ترجمہ (Urdu Translation)
-            </h4>
-            <div className="urdu-panel-actions">
-              <button
-                className="action-btn"
-                onClick={copyToClipboard}
-                title="Copy translation"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
-                  <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
-                </svg>
-              </button>
-              <button
-                className="action-btn"
-                onClick={handleRefresh}
-                disabled={isLoading}
-                title="Refresh translation"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-                  <path d="M21 3v5h-5" />
-                  <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-                  <path d="M8 16H3v5" />
-                </svg>
-              </button>
-              <button
-                className="action-btn close-btn"
-                onClick={() => setIsExpanded(false)}
-                title="Close"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-              </button>
-            </div>
-          </div>
+      {/* Error Message */}
+      {error && (
+        <div className="error-msg" role="alert" aria-live="polite">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          {error}
+        </div>
+      )}
 
+      {/* Urdu Translation Panel */}
+      {showTranslation && urduContent && (
+        <div className="urdu-panel" role="region" aria-label="Urdu translation">
+          <div className="urdu-header">
+            <h3 id="urdu-translation-heading">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="m5 8 6 6M4 14l6-6 2-3M2 5h12M7 2h1"/>
+              </svg>
+              اردو ترجمہ
+            </h3>
+            <button
+              className="close-btn"
+              onClick={() => setShowTranslation(false)}
+              aria-label="Close Urdu translation panel"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
           <div className="urdu-content" dir="rtl" lang="ur">
             {urduContent}
           </div>
         </div>
       )}
 
-      {error && (
-        <div className="error-message">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="8" x2="12" y2="12"></line>
-            <line x1="12" y1="16" x2="12.01" y2="16"></line>
-          </svg>
-          {error}
-        </div>
-      )}
-
       <style>{`
-        .translate-urdu-container {
-          position: fixed;
-          bottom: 100px;
-          right: 24px;
-          z-index: 999;
+        .translate-urdu-wrapper {
+          margin: 1.5rem 0;
+          padding: 0;
         }
 
-        .translate-urdu-button {
+        .translate-btn {
           display: inline-flex;
           align-items: center;
           gap: 0.5rem;
-          padding: 0.75rem 1.25rem;
-          background: linear-gradient(135deg, #047857, #065f46);
-          color: white;
+          padding: 0.75rem 1.5rem;
+          background: linear-gradient(135deg, #ffd700, #ffa500);
+          color: #1a1a2e;
           border: none;
-          border-radius: 24px;
+          border-radius: 8px;
           cursor: pointer;
-          font-size: 0.9rem;
+          font-size: 0.95rem;
           font-weight: 500;
-          transition: all 0.3s ease;
-          box-shadow: 0 4px 15px rgba(4, 120, 87, 0.4);
+          transition: all 0.2s ease;
+          box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
         }
 
-        .translate-urdu-button:hover:not(:disabled) {
-          transform: translateY(-2px);
-          box-shadow: 0 6px 20px rgba(4, 120, 87, 0.5);
+        .translate-btn:hover:not(:disabled) {
+          transform: translateY(-1px);
+          box-shadow: 0 0 40px rgba(255, 215, 0, 0.5);
         }
 
-        .translate-urdu-button.active {
-          background: linear-gradient(135deg, #065f46, #047857);
+        .translate-btn.active {
+          background: #252540;
+          color: #ffd700;
+          border: 1px solid #ffd700;
         }
 
-        .translate-urdu-button:disabled {
+        .translate-btn:disabled {
           opacity: 0.7;
-          cursor: not-allowed;
+          cursor: wait;
         }
 
-        .urdu-label {
-          font-size: 0.75rem;
-          opacity: 0.9;
+        .btn-label {
+          font-size: 0.8rem;
+          opacity: 0.85;
         }
 
         .spinner {
-          width: 16px;
-          height: 16px;
-          border: 2px solid rgba(255, 255, 255, 0.3);
-          border-top-color: white;
+          width: 18px;
+          height: 18px;
+          border: 2px solid rgba(26, 26, 46, 0.3);
+          border-top-color: #1a1a2e;
           border-radius: 50%;
           animation: spin 0.8s linear infinite;
         }
 
         @keyframes spin {
-          to {
-            transform: rotate(360deg);
-          }
+          to { transform: rotate(360deg); }
         }
 
-        .urdu-content-panel {
-          position: fixed;
-          bottom: 160px;
-          right: 24px;
-          width: 400px;
-          max-width: calc(100vw - 48px);
-          max-height: 60vh;
-          background: var(--ifm-background-color, #fff);
-          border: 1px solid var(--ifm-color-emphasis-200, #e5e5e5);
-          border-radius: 16px;
+        .error-msg {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          margin-top: 1rem;
+          padding: 0.75rem 1rem;
+          background: rgba(239, 68, 68, 0.1);
+          color: #ef4444;
+          border: 1px solid rgba(239, 68, 68, 0.3);
+          border-radius: 8px;
+          font-size: 0.9rem;
+        }
+
+        .urdu-panel {
+          margin-top: 1.5rem;
+          background: #1a1a2e;
+          border: 1px solid rgba(255, 215, 0, 0.3);
+          border-radius: 12px;
           overflow: hidden;
-          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
-          animation: slideUp 0.3s ease-out;
         }
 
-        @keyframes slideUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        .urdu-panel-header {
+        .urdu-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
           padding: 1rem 1.25rem;
-          background: linear-gradient(135deg, #047857, #065f46);
+          background: #252540;
           color: white;
+          border-bottom: 1px solid rgba(255, 215, 0, 0.1);
         }
 
-        .urdu-panel-header h4 {
+        .urdu-header h3 {
           margin: 0;
           display: flex;
           align-items: center;
           gap: 0.5rem;
-          font-size: 1rem;
+          font-size: 1.1rem;
           font-weight: 600;
+          color: #ffd700;
         }
 
-        .urdu-panel-actions {
-          display: flex;
-          gap: 0.5rem;
-        }
-
-        .action-btn {
-          background: rgba(255, 255, 255, 0.2);
+        .close-btn {
+          background: rgba(255, 215, 0, 0.1);
           border: none;
-          border-radius: 8px;
-          padding: 0.5rem;
+          border-radius: 6px;
+          padding: 0.375rem;
           cursor: pointer;
-          color: white;
-          transition: background 0.2s;
+          color: #b0b0c0;
           display: flex;
           align-items: center;
           justify-content: center;
+          transition: background 0.2s, color 0.2s;
         }
 
-        .action-btn:hover:not(:disabled) {
-          background: rgba(255, 255, 255, 0.3);
-        }
-
-        .action-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
+        .close-btn:hover {
+          background: rgba(255, 215, 0, 0.2);
+          color: #ffd700;
         }
 
         .urdu-content {
           padding: 1.5rem;
-          font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', serif;
-          font-size: 1.1rem;
-          line-height: 2.2;
-          color: var(--ifm-font-color-base, #333);
+          font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Urdu Typesetting', serif;
+          font-size: 1.2rem;
+          line-height: 2.4;
+          color: #e2e8f0;
           text-align: right;
           white-space: pre-wrap;
-          max-height: calc(60vh - 60px);
-          overflow-y: auto;
+          background: #0f0f1a;
         }
 
-        .error-message {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          margin-top: 0.75rem;
-          padding: 0.75rem 1rem;
-          background: #fee2e2;
-          color: #dc2626;
-          border-radius: 12px;
-          font-size: 0.875rem;
-          position: fixed;
-          bottom: 160px;
-          right: 24px;
-        }
-
-        @media (max-width: 768px) {
-          .translate-urdu-container {
-            bottom: 90px;
-            right: 16px;
-          }
-
-          .translate-urdu-button {
-            padding: 0.625rem 1rem;
-            font-size: 0.85rem;
-          }
-
-          .urdu-label {
-            display: none;
-          }
-
-          .urdu-content-panel {
-            bottom: 150px;
-            right: 16px;
-            width: calc(100vw - 32px);
-          }
-        }
-
-        [data-theme='dark'] .urdu-content-panel {
-          background: var(--ifm-background-color);
-          border-color: rgba(255, 255, 255, 0.1);
+        [data-theme='dark'] .urdu-panel {
+          background: #1a1a2e;
+          border-color: rgba(255, 215, 0, 0.3);
         }
 
         [data-theme='dark'] .urdu-content {
-          color: var(--ifm-font-color-base);
+          color: #e5e7eb;
         }
 
-        [data-theme='dark'] .error-message {
-          background: rgba(220, 38, 38, 0.2);
+        [data-theme='dark'] .error-msg {
+          background: rgba(239, 68, 68, 0.1);
           color: #fca5a5;
+        }
+
+        @media (max-width: 768px) {
+          .translate-btn {
+            width: 100%;
+            justify-content: center;
+          }
+
+          .btn-label {
+            display: none;
+          }
+
+          .urdu-content {
+            font-size: 1.1rem;
+            padding: 1rem;
+          }
         }
       `}</style>
     </div>

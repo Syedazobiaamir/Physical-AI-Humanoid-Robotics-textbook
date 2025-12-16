@@ -1,7 +1,7 @@
 .hero {
   padding: 0 2rem;
-  background: linear-gradient(135deg, #FFFFFF 0%, #F5F7FB 50%, #FFFFFF 100%);
-  color: var(--color-text-dark, #0B1220);
+  background: linear-gradient(180deg, #0f0f1a 0%, #1a1a2e 100%);
+  color: #ffffff;
   min-height: 100vh;
   display: flex;
   align-items: center;
@@ -9,16 +9,29 @@
   overflow: hidden;
 }
 
-/* Neural grid background */
+/* Neural grid background with yellow tint */
 .hero::before {
   content: '';
   position: absolute;
   inset: 0;
-  background-image: 
-    linear-gradient(rgba(10, 46, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(10, 46, 255, 0.03) 1px, transparent 1px);
+  background-image:
+    linear-gradient(rgba(255, 215, 0, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 215, 0, 0.03) 1px, transparent 1px);
   background-size: 50px 50px;
   animation: gridMove 20s linear infinite;
+  pointer-events: none;
+}
+
+/* Yellow glow effect behind content */
+.hero::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 800px;
+  height: 800px;
+  background: radial-gradient(circle, rgba(255, 215, 0, 0.1) 0%, transparent 70%);
+  transform: translate(-50%, -50%);
   pointer-events: none;
 }
 
@@ -49,16 +62,17 @@
   font-weight: 700;
   margin-bottom: 1.5rem;
   line-height: 1.1;
-  background: linear-gradient(135deg, #0A2EFF 0%, #1F6BFF 50%, #3BE8FF 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #ffffff;
   letter-spacing: -0.02em;
+}
+
+.heroTitle span {
+  color: #ffd700;
 }
 
 .heroTagline {
   font-size: 1.25rem;
-  color: #64748B;
+  color: #b0b0c0;
   margin-bottom: 2.5rem;
   line-height: 1.7;
   max-width: 540px;
@@ -74,8 +88,8 @@
   display: inline-flex;
   align-items: center;
   padding: 1rem 2rem;
-  background: linear-gradient(135deg, #0A2EFF 0%, #1F6BFF 50%, #3BE8FF 100%);
-  color: white;
+  background: linear-gradient(135deg, #ffd700 0%, #ffa500 100%);
+  color: #1a1a2e;
   font-size: 1.1rem;
   font-weight: 600;
   border-radius: 9999px;
@@ -83,6 +97,7 @@
   transition: transform 0.2s, box-shadow 0.2s;
   position: relative;
   overflow: hidden;
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
 }
 
 .heroCta::before {
@@ -96,8 +111,8 @@
 
 .heroCta:hover {
   transform: translateY(-2px);
-  box-shadow: 0 0 30px rgba(10, 46, 255, 0.4);
-  color: white;
+  box-shadow: 0 0 40px rgba(255, 215, 0, 0.5);
+  color: #1a1a2e;
   text-decoration: none;
 }
 
@@ -114,19 +129,19 @@
   align-items: center;
   padding: 1rem 2rem;
   background: transparent;
-  color: #0A2EFF;
+  color: #ffd700;
   font-size: 1.1rem;
   font-weight: 600;
-  border: 2px solid #3BE8FF;
+  border: 2px solid #ffd700;
   border-radius: 9999px;
   text-decoration: none;
   transition: all 0.2s;
 }
 
 .heroSecondary:hover {
-  background: rgba(59, 232, 255, 0.1);
-  box-shadow: 0 0 20px rgba(59, 232, 255, 0.3);
-  color: #0A2EFF;
+  background: rgba(255, 215, 0, 0.1);
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+  color: #ffd700;
   text-decoration: none;
 }
 
@@ -138,40 +153,59 @@
 }
 
 .robotIcon {
-  width: 280px;
-  height: 280px;
-  animation: float 3s ease-in-out infinite;
-  filter: drop-shadow(0 10px 30px rgba(10, 46, 255, 0.2));
+  width: 320px;
+  height: 400px;
+  animation: float 4s ease-in-out infinite;
+  filter: drop-shadow(0 20px 40px rgba(255, 215, 0, 0.15));
 }
 
 @keyframes float {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-15px); }
+  50% { transform: translateY(-20px); }
 }
 
 .robotSvg {
   width: 100%;
   height: 100%;
-  color: #0A2EFF;
 }
 
-.robotSvg circle,
-.robotSvg path,
-.robotSvg rect,
-.robotSvg line {
-  filter: drop-shadow(0 0 8px rgba(59, 232, 255, 0.5));
+/* Eye glow animation */
+.eyeLeft,
+.eyeRight {
+  animation: eyePulse 2s ease-in-out infinite;
 }
 
-/* Robot eye glow animation */
-.robotSvg circle:nth-of-type(2),
-.robotSvg circle:nth-of-type(3) {
-  fill: #3BE8FF;
-  animation: eyeGlow 2s ease-in-out infinite;
+.eyeRight {
+  animation-delay: 0.3s;
 }
 
-@keyframes eyeGlow {
-  0%, 100% { filter: drop-shadow(0 0 5px rgba(59, 232, 255, 0.6)); }
-  50% { filter: drop-shadow(0 0 15px rgba(59, 232, 255, 1)); }
+@keyframes eyePulse {
+  0%, 100% {
+    opacity: 0.8;
+    filter: url(#glow) drop-shadow(0 0 5px rgba(255, 215, 0, 0.8));
+  }
+  50% {
+    opacity: 1;
+    filter: url(#glow) drop-shadow(0 0 15px rgba(255, 215, 0, 1));
+  }
+}
+
+/* Core reactor pulse animation */
+.core {
+  animation: corePulse 1.5s ease-in-out infinite;
+}
+
+@keyframes corePulse {
+  0%, 100% {
+    r: 6;
+    opacity: 0.9;
+    filter: url(#glow) drop-shadow(0 0 8px rgba(255, 215, 0, 0.8));
+  }
+  50% {
+    r: 8;
+    opacity: 1;
+    filter: url(#glow) drop-shadow(0 0 20px rgba(255, 215, 0, 1));
+  }
 }
 
 /* Responsive styles */
@@ -201,8 +235,8 @@
   }
 
   .robotIcon {
-    width: 200px;
-    height: 200px;
+    width: 250px;
+    height: 320px;
   }
 }
 
@@ -227,7 +261,7 @@
   }
 
   .robotIcon {
-    width: 160px;
-    height: 160px;
+    width: 200px;
+    height: 260px;
   }
 }

@@ -1,13 +1,15 @@
+/* ModuleCard Styles - Dark Blue + Yellow Theme */
+
 .card {
   display: flex;
   align-items: center;
   padding: 1.5rem;
-  background: #FFFFFF;
-  border: 1px solid rgba(10, 46, 255, 0.08);
+  background: #1a1a2e;
+  border: 1px solid rgba(255, 215, 0, 0.15);
   border-radius: 1.5rem;
   text-decoration: none;
   color: inherit;
-  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), 
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
               box-shadow 0.3s ease,
               border-color 0.3s ease;
   cursor: pointer;
@@ -19,17 +21,17 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(10, 46, 255, 0.02) 0%, rgba(59, 232, 255, 0.02) 100%);
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.05) 0%, rgba(255, 165, 0, 0.03) 100%);
   opacity: 0;
   transition: opacity 0.3s ease;
 }
 
 .card:hover {
   transform: translateY(-8px);
-  box-shadow: 
-    0 20px 40px rgba(11, 18, 32, 0.1),
-    0 0 40px rgba(10, 46, 255, 0.15);
-  border-color: rgba(59, 232, 255, 0.4);
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.3),
+    0 0 40px rgba(255, 215, 0, 0.2);
+  border-color: rgba(255, 215, 0, 0.5);
   text-decoration: none;
   color: inherit;
 }
@@ -46,16 +48,17 @@
   align-items: center;
   justify-content: center;
   border-radius: 1rem;
-  color: white;
+  color: #1a1a2e;
+  background: linear-gradient(135deg, #ffd700, #ffa500);
   margin-right: 1.25rem;
   transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
               box-shadow 0.3s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
 }
 
 .card:hover .cardIcon {
   transform: scale(1.1) rotate(5deg);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 25px rgba(255, 215, 0, 0.5);
 }
 
 .cardContent {
@@ -67,13 +70,13 @@
   font-size: 1.25rem;
   font-weight: 600;
   margin: 0 0 0.5rem 0;
-  color: #0B1220;
+  color: #ffffff;
   letter-spacing: -0.01em;
 }
 
 .cardDescription {
   font-size: 0.95rem;
-  color: #64748B;
+  color: #b0b0c0;
   margin: 0 0 0.75rem 0;
   line-height: 1.6;
 }
@@ -81,8 +84,8 @@
 .cardWeeks {
   display: inline-block;
   font-size: 0.8rem;
-  color: #0A2EFF;
-  background: rgba(10, 46, 255, 0.08);
+  color: #ffd700;
+  background: rgba(255, 215, 0, 0.15);
   padding: 0.3rem 0.85rem;
   border-radius: 9999px;
   font-weight: 500;
@@ -90,19 +93,20 @@
 }
 
 .card:hover .cardWeeks {
-  background: rgba(10, 46, 255, 0.12);
+  background: rgba(255, 215, 0, 0.25);
 }
 
+/* Dark theme already applied above - just ensure consistency */
 [data-theme='dark'] .card {
-  background: #121830;
-  border-color: rgba(59, 232, 255, 0.1);
+  background: #1a1a2e;
+  border-color: rgba(255, 215, 0, 0.15);
 }
 
 [data-theme='dark'] .card:hover {
-  border-color: rgba(59, 232, 255, 0.4);
-  box-shadow: 
-    0 20px 40px rgba(0, 0, 0, 0.3),
-    0 0 40px rgba(59, 232, 255, 0.2);
+  border-color: rgba(255, 215, 0, 0.5);
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.4),
+    0 0 40px rgba(255, 215, 0, 0.25);
 }
 
 [data-theme='dark'] .cardTitle {
@@ -110,28 +114,28 @@
 }
 
 [data-theme='dark'] .cardDescription {
-  color: #94A3B8;
+  color: #b0b0c0;
 }
 
 [data-theme='dark'] .cardWeeks {
-  color: #3BE8FF;
-  background: rgba(59, 232, 255, 0.15);
+  color: #ffd700;
+  background: rgba(255, 215, 0, 0.15);
 }
 
 .cardArrow {
   flex-shrink: 0;
-  color: #94A3B8;
+  color: #7a7a90;
   margin-left: 1rem;
   transition: transform 0.3s ease, color 0.3s ease;
 }
 
 .card:hover .cardArrow {
   transform: translateX(6px);
-  color: #0A2EFF;
+  color: #ffd700;
 }
 
 [data-theme='dark'] .card:hover .cardArrow {
-  color: #3BE8FF;
+  color: #ffd700;
 }
 
 /* Grid layout for multiple cards */

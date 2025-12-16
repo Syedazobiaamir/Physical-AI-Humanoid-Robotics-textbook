@@ -1,4 +1,4 @@
-/* ChatBot Widget Styles */
+/* ChatBot Widget Styles - Dark Blue + Yellow Theme */
 
 /* Toggle button - floating */
 .toggleButton {
@@ -8,21 +8,21 @@
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  background: linear-gradient(135deg, #ffd700, #ffa500);
   border: none;
-  color: white;
+  color: #1a1a2e;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
   transition: transform 0.2s, box-shadow 0.2s;
   z-index: 1000;
 }
 
 .toggleButton:hover {
   transform: scale(1.05);
-  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.5);
+  box-shadow: 0 0 40px rgba(255, 215, 0, 0.5);
 }
 
 .toggleButton.hidden {
@@ -38,9 +38,9 @@
   max-width: calc(100vw - 2rem);
   height: 550px;
   max-height: calc(100vh - 3rem);
-  background: var(--ifm-background-color);
+  background: #1a1a2e;
   border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -49,7 +49,7 @@
   opacity: 0;
   visibility: hidden;
   transition: transform 0.3s ease, opacity 0.3s ease, visibility 0.3s;
-  border: 1px solid var(--ifm-color-emphasis-200);
+  border: 1px solid rgba(255, 215, 0, 0.2);
 }
 
 .widget.open {
@@ -64,8 +64,9 @@
   align-items: center;
   justify-content: space-between;
   padding: 1rem 1.25rem;
-  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  background: #252540;
   color: white;
+  border-bottom: 1px solid rgba(255, 215, 0, 0.1);
 }
 
 .headerTitle {
@@ -107,6 +108,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  background: #0f0f1a;
 }
 
 /* Welcome screen */
@@ -117,21 +119,21 @@
   justify-content: center;
   text-align: center;
   padding: 2rem 1rem;
-  color: var(--ifm-color-emphasis-700);
+  color: #b0b0c0;
 }
 
 .welcome svg {
   width: 48px;
   height: 48px;
   margin-bottom: 1rem;
-  color: var(--ifm-color-primary);
+  color: #ffd700;
 }
 
 .welcome h3 {
   font-size: 1.25rem;
   font-weight: 600;
   margin: 0 0 0.5rem;
-  color: var(--ifm-heading-color);
+  color: #ffffff;
 }
 
 .welcome p {
@@ -148,20 +150,20 @@
 }
 
 .suggestions button {
-  background: var(--ifm-background-surface-color);
-  border: 1px solid var(--ifm-color-emphasis-200);
+  background: #252540;
+  border: 1px solid rgba(255, 215, 0, 0.2);
   border-radius: 8px;
   padding: 0.625rem 1rem;
   font-size: 0.85rem;
-  color: var(--ifm-font-color-base);
+  color: #e2e8f0;
   cursor: pointer;
   text-align: left;
   transition: background 0.2s, border-color 0.2s;
 }
 
 .suggestions button:hover {
-  background: var(--ifm-color-emphasis-100);
-  border-color: var(--ifm-color-primary);
+  background: rgba(255, 215, 0, 0.1);
+  border-color: #ffd700;
 }
 
 /* Message bubbles */
@@ -175,17 +177,18 @@
 
 .message.user {
   align-self: flex-end;
-  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-  color: white;
+  background: rgba(255, 215, 0, 0.15);
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  color: #ffffff;
   border-bottom-right-radius: 4px;
 }
 
 .message.assistant {
   align-self: flex-start;
-  background: var(--ifm-background-surface-color);
-  border: 1px solid var(--ifm-color-emphasis-200);
+  background: #252540;
+  border: 1px solid rgba(255, 215, 0, 0.1);
   border-bottom-left-radius: 4px;
-  color: var(--ifm-font-color-base);
+  color: #e2e8f0;
 }
 
 .messageContent {
@@ -197,24 +200,24 @@
 .sources {
   margin-top: 0.75rem;
   padding-top: 0.75rem;
-  border-top: 1px solid var(--ifm-color-emphasis-200);
+  border-top: 1px solid rgba(255, 215, 0, 0.1);
   font-size: 0.8rem;
 }
 
 .sourcesLabel {
-  color: var(--ifm-color-emphasis-600);
+  color: #b0b0c0;
   display: block;
   margin-bottom: 0.25rem;
 }
 
 .source {
   display: inline-block;
-  background: var(--ifm-color-emphasis-100);
+  background: rgba(255, 215, 0, 0.1);
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
   margin: 0.25rem 0.25rem 0 0;
   font-size: 0.75rem;
-  color: var(--ifm-color-emphasis-700);
+  color: #ffd700;
 }
 
 /* Typing indicator */
@@ -227,7 +230,7 @@
 .typing span {
   width: 8px;
   height: 8px;
-  background: var(--ifm-color-emphasis-400);
+  background: #ffd700;
   border-radius: 50%;
   animation: typing 1.4s infinite ease-in-out;
 }
@@ -259,20 +262,20 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  background: rgba(59, 130, 246, 0.1);
-  border-top: 1px solid var(--ifm-color-emphasis-200);
+  background: rgba(255, 215, 0, 0.1);
+  border-top: 1px solid rgba(255, 215, 0, 0.1);
   font-size: 0.85rem;
 }
 
 .selectionLabel {
-  color: var(--ifm-color-primary);
+  color: #ffd700;
   font-weight: 500;
   white-space: nowrap;
 }
 
 .selectionText {
   flex: 1;
-  color: var(--ifm-color-emphasis-700);
+  color: #b0b0c0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -281,7 +284,7 @@
 .clearSelection {
   background: none;
   border: none;
-  color: var(--ifm-color-emphasis-500);
+  color: #7a7a90;
   cursor: pointer;
   padding: 0.25rem;
   display: flex;
@@ -292,7 +295,7 @@
 }
 
 .clearSelection:hover {
-  color: var(--ifm-color-danger);
+  color: #ef4444;
   background: rgba(239, 68, 68, 0.1);
 }
 
@@ -301,19 +304,19 @@
   display: flex;
   gap: 0.5rem;
   padding: 1rem;
-  border-top: 1px solid var(--ifm-color-emphasis-200);
-  background: var(--ifm-background-color);
+  border-top: 1px solid rgba(255, 215, 0, 0.1);
+  background: #252540;
 }
 
 .input {
   flex: 1;
-  border: 1px solid var(--ifm-color-emphasis-300);
+  border: 1px solid rgba(255, 215, 0, 0.2);
   border-radius: 8px;
   padding: 0.625rem 1rem;
   font-size: 0.9rem;
   resize: none;
-  background: var(--ifm-background-surface-color);
-  color: var(--ifm-font-color-base);
+  background: #1a1a2e;
+  color: #e2e8f0;
   font-family: inherit;
   min-height: 40px;
   max-height: 120px;
@@ -322,12 +325,12 @@
 
 .input:focus {
   outline: none;
-  border-color: var(--ifm-color-primary);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  border-color: #ffd700;
+  box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.15);
 }
 
 .input::placeholder {
-  color: var(--ifm-color-emphasis-500);
+  color: #7a7a90;
 }
 
 .input:disabled {
@@ -340,8 +343,8 @@
   height: 40px;
   border: none;
   border-radius: 8px;
-  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-  color: white;
+  background: linear-gradient(135deg, #ffd700, #ffa500);
+  color: #1a1a2e;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -380,15 +383,15 @@
   }
 }
 
-/* Dark mode adjustments */
+/* Dark mode adjustments - already dark theme, so minimal changes */
 [data-theme='dark'] .widget {
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
 }
 
 [data-theme='dark'] .message.assistant {
-  background: var(--ifm-background-surface-color);
+  background: #252540;
 }
 
 [data-theme='dark'] .suggestions button:hover {
-  background: var(--ifm-color-emphasis-200);
+  background: rgba(255, 215, 0, 0.1);
 }

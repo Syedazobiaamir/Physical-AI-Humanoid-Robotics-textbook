@@ -20,10 +20,21 @@ class OpenAIClient:
     """
 
     def __init__(self):
-        """Initialize OpenAI client"""
-        self.client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+        """Initialize OpenAI client (only if API key is available)"""
+        self.client = None
         self.model = OPENAI_MODEL
         self.embedding_model = OPENAI_EMBEDDING_MODEL
+
+        if OPENAI_API_KEY:
+            self.client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+            logger.info("OpenAI client initialized")
+        else:
+            logger.warning("OpenAI API key not set - OpenAI features disabled")
+
+    @property
+    def is_available(self) -> bool:
+        """Check if OpenAI client is available"""
+        return self.client is not None
 
     async def generate_embedding(self, text: str) -> Optional[List[float]]:
         """
@@ -35,6 +46,10 @@ class OpenAIClient:
         Returns:
             Embedding vector or None if failed
         """
+        if not self.client:
+            logger.warning("OpenAI client not available for embedding")
+            return None
+
         try:
             response = await self.client.embeddings.create(
                 model=self.embedding_model,
@@ -57,6 +72,10 @@ class OpenAIClient:
         Returns:
             List of embedding vectors
         """
+        if not self.client:
+            logger.warning("OpenAI client not available for batch embedding")
+            return []
+
         try:
             response = await self.client.embeddings.create(
                 model=self.embedding_model,
@@ -88,6 +107,10 @@ class OpenAIClient:
         Returns:
             Generated text or None if failed
         """
+        if not self.client:
+            logger.warning("OpenAI client not available for completion")
+            return None
+
         try:
             messages = []
             if system_prompt:

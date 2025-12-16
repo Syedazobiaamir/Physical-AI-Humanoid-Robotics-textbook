@@ -1,33 +1,39 @@
-# Data Model: Unified UI/UX + Chatbot Design System
+# Data Model: AI-Native Technical Textbook Platform
 
 **Feature**: 001-unified-design-system
-**Date**: 2025-12-13
+**Date**: 2025-12-15 (Updated)
 **Status**: Complete
 
 ## Overview
 
-This document defines the data entities, relationships, and validation rules for the Unified Design System feature.
+This document defines the data entities, relationships, and validation rules for the AI-Native Technical Textbook Platform with Clerk authentication and Dark Blue + Yellow theme.
 
 ---
 
 ## Entity Relationship Diagram
 
 ```
-┌─────────────┐       ┌─────────────────┐       ┌──────────────┐
-│    User     │───────│  UserProfile    │       │   Chapter    │
-└─────────────┘  1:1  └─────────────────┘       └──────────────┘
-       │                                               │
-       │ 1:N                                          │
-       ▼                                              │
-┌─────────────────┐                                   │
-│  ChatSession    │───────────────────────────────────┘
-└─────────────────┘  N:1 (chapter context)
-       │
-       │ 1:N
-       ▼
+┌─────────────────┐       ┌─────────────────┐
+│      User       │───────│   UserProfile   │
+│  (Clerk-based)  │  1:1  │  (Background)   │
+└─────────────────┘       └─────────────────┘
+         │                        │
+         │ 1:N                    │
+         ▼                        │
+┌─────────────────┐               │
+│   ChatSession   │───────────────┘
+└─────────────────┘  (personalization context)
+         │
+         │ 1:N
+         ▼
 ┌─────────────────┐
-│  ChatMessage    │
+│   ChatMessage   │
 └─────────────────┘
+
+┌─────────────────┐       ┌─────────────────┐
+│ PlatformStats   │       │TranslationCache │
+│   (Singleton)   │       │    (Chapter)    │
+└─────────────────┘       └─────────────────┘
 ```
 
 ---
@@ -36,20 +42,21 @@ This document defines the data entities, relationships, and validation rules for
 
 ### 1. User
 
-**Description**: Core user account managed by Better-Auth.
+**Description**: User account linked to Clerk authentication.
 
 | Field | Type | Constraints | Description |
 |-------|------|-------------|-------------|
-| id | UUID | PK, NOT NULL | Unique identifier |
-| email | VARCHAR(255) | UNIQUE, NOT NULL | User email address |
-| password_hash | VARCHAR(255) | NOT NULL | Bcrypt hashed password |
-| email_verified | BOOLEAN | DEFAULT false | Email verification status |
+| id | VARCHAR(255) | PK, NOT NULL | Clerk user_id |
+| email | VARCHAR(255) | UNIQUE, NOT NULL | User email from Clerk |
+| name | VARCHAR(255) | NULL | Display name from Clerk |
+| avatar_url | VARCHAR(500) | NULL | Profile image URL |
+| role | VARCHAR(50) | NOT NULL, DEFAULT 'student' | student, instructor |
 | created_at | TIMESTAMP | NOT NULL, DEFAULT NOW() | Account creation time |
 | updated_at | TIMESTAMP | NOT NULL, DEFAULT NOW() | Last update time |
 
 **Validation Rules**:
-- Email must be valid format (RFC 5322)
-- Password minimum 8 characters, at least one number and one letter
+- id is provided by Clerk (not auto-generated)
+- email must be valid format (RFC 5322)
 
 **Indexes**:
 - PRIMARY KEY (id)
@@ -57,26 +64,26 @@ This document defines the data entities, relationships, and validation rules for
 
 ---
 
-### 2. UserProfile
+### 2. UserProfile (Personalization Preferences)
 
-**Description**: Extended user profile with learning preferences.
+**Description**: Extended user profile with learning background for personalization.
 
 | Field | Type | Constraints | Description |
 |-------|------|-------------|-------------|
-| id | UUID | PK, NOT NULL | Unique identifier |
-| user_id | UUID | FK → User.id, UNIQUE, NOT NULL | Associated user |
-| display_name | VARCHAR(100) | NULL | Optional display name |
-| software_background | TEXT | NULL | User's software experience description |
-| hardware_background | TEXT | NULL | User's hardware experience description |
-| skill_level | ENUM | NOT NULL, DEFAULT 'beginner' | beginner, intermediate, advanced |
+| id | UUID | PK, NOT NULL | Auto-generated UUID |
+| user_id | VARCHAR(255) | FK → User.id, UNIQUE, NOT NULL | Clerk user reference |
+| software_level | ENUM | NOT NULL, DEFAULT 'beginner' | beginner, intermediate, advanced |
+| hardware_exposure | ENUM | NOT NULL, DEFAULT 'none' | none, some, extensive |
+| robotics_experience | ENUM | NOT NULL, DEFAULT 'none' | none, some, extensive |
 | language_preference | ENUM | NOT NULL, DEFAULT 'en' | en (English), ur (Urdu) |
 | created_at | TIMESTAMP | NOT NULL, DEFAULT NOW() | Profile creation time |
 | updated_at | TIMESTAMP | NOT NULL, DEFAULT NOW() | Last update time |
 
 **Validation Rules**:
-- skill_level MUST be one of: 'beginner', 'intermediate', 'advanced'
+- software_level MUST be one of: 'beginner', 'intermediate', 'advanced'
+- hardware_exposure MUST be one of: 'none', 'some', 'extensive'
+- robotics_experience MUST be one of: 'none', 'some', 'extensive'
 - language_preference MUST be one of: 'en', 'ur'
-- display_name max 100 characters
 
 **Indexes**:
 - PRIMARY KEY (id)
@@ -86,56 +93,52 @@ This document defines the data entities, relationships, and validation rules for
 
 ### 3. Chapter
 
-**Description**: Course chapter content metadata.
+**Description**: Course chapter content metadata (MDX files in Docusaurus).
 
 | Field | Type | Constraints | Description |
 |-------|------|-------------|-------------|
-| id | UUID | PK, NOT NULL | Unique identifier |
-| slug | VARCHAR(100) | UNIQUE, NOT NULL | URL-friendly identifier |
+| id | VARCHAR(255) | PK, NOT NULL | Chapter identifier (slug) |
 | title | VARCHAR(255) | NOT NULL | Chapter title |
-| module_number | INTEGER | NOT NULL | Module (1-4, 5=Capstone) |
-| chapter_number | INTEGER | NOT NULL | Chapter within module |
+| module | VARCHAR(50) | NOT NULL | Module name (module-1, module-2, etc.) |
+| week | INTEGER | NOT NULL | Week number (1-16) |
 | content_path | VARCHAR(500) | NOT NULL | Path to MDX file |
-| embedding_collection | VARCHAR(100) | NOT NULL | Qdrant collection name |
+| learning_objectives | TEXT[] | NOT NULL | Array of learning objectives |
 | created_at | TIMESTAMP | NOT NULL, DEFAULT NOW() | Creation time |
 | updated_at | TIMESTAMP | NOT NULL, DEFAULT NOW() | Last update time |
 
 **Validation Rules**:
-- slug must be lowercase alphanumeric with hyphens only
-- module_number MUST be 1-5
+- id must be lowercase alphanumeric with hyphens
+- week MUST be between 1 and 16
 - content_path MUST be valid file path
 
 **Indexes**:
 - PRIMARY KEY (id)
-- UNIQUE INDEX (slug)
-- INDEX (module_number, chapter_number)
+- INDEX (module)
+- INDEX (week)
 
 ---
 
 ### 4. ChatSession
 
-**Description**: A conversation session between user and chatbot.
+**Description**: A conversation session for RAG chatbot.
 
 | Field | Type | Constraints | Description |
 |-------|------|-------------|-------------|
 | id | UUID | PK, NOT NULL | Unique identifier |
-| user_id | UUID | FK → User.id, NULL | Associated user (NULL for anonymous) |
-| chapter_id | UUID | FK → Chapter.id, NULL | Chapter context (if any) |
-| session_token | VARCHAR(64) | UNIQUE, NOT NULL | Anonymous session identifier |
+| user_id | VARCHAR(255) | FK → User.id, NULL | Associated user (NULL for anonymous) |
+| chapter_id | VARCHAR(255) | FK → Chapter.id, NULL | Chapter context (if any) |
 | is_active | BOOLEAN | NOT NULL, DEFAULT true | Session active status |
 | created_at | TIMESTAMP | NOT NULL, DEFAULT NOW() | Session start time |
 | updated_at | TIMESTAMP | NOT NULL, DEFAULT NOW() | Last activity time |
-| closed_at | TIMESTAMP | NULL | Session end time |
 
 **Validation Rules**:
-- session_token must be cryptographically random 64-char hex string
-- Either user_id OR session_token must identify the session
+- Session auto-closes after 30 minutes of inactivity
 
 **Indexes**:
 - PRIMARY KEY (id)
 - INDEX (user_id)
 - INDEX (chapter_id)
-- UNIQUE INDEX (session_token)
+- INDEX (is_active, updated_at)
 
 ---
 
@@ -149,7 +152,8 @@ This document defines the data entities, relationships, and validation rules for
 | session_id | UUID | FK → ChatSession.id, NOT NULL | Parent session |
 | role | ENUM | NOT NULL | 'user' or 'assistant' |
 | content | TEXT | NOT NULL | Message content |
-| selected_context | TEXT | NULL | User-selected text context |
+| selected_context | TEXT | NULL | User-selected text (Context Selection Skill) |
+| skill_used | VARCHAR(100) | NULL | Which skill generated this (assistant only) |
 | tokens_used | INTEGER | NULL | Token count for assistant messages |
 | created_at | TIMESTAMP | NOT NULL, DEFAULT NOW() | Message timestamp |
 
@@ -157,6 +161,7 @@ This document defines the data entities, relationships, and validation rules for
 - role MUST be one of: 'user', 'assistant'
 - content MUST NOT be empty
 - selected_context only populated for user messages with text selection
+- skill_used only populated for assistant messages
 
 **Indexes**:
 - PRIMARY KEY (id)
@@ -164,48 +169,67 @@ This document defines the data entities, relationships, and validation rules for
 
 ---
 
-### 6. PersonalizedContent (Cache)
+### 6. TranslationCache
 
-**Description**: Cached personalized chapter content for users.
+**Description**: Cached Urdu translations for chapters.
 
 | Field | Type | Constraints | Description |
 |-------|------|-------------|-------------|
 | id | UUID | PK, NOT NULL | Unique identifier |
-| user_id | UUID | FK → User.id, NOT NULL | Target user |
-| chapter_id | UUID | FK → Chapter.id, NOT NULL | Source chapter |
-| personalization_type | ENUM | NOT NULL | 'beginner', 'hardware', 'urdu' |
-| content | TEXT | NOT NULL | Transformed content |
-| agent_used | VARCHAR(100) | NOT NULL | Agent that generated content |
-| created_at | TIMESTAMP | NOT NULL, DEFAULT NOW() | Generation time |
-| expires_at | TIMESTAMP | NOT NULL | Cache expiration |
+| chapter_id | VARCHAR(255) | FK → Chapter.id, NOT NULL | Source chapter |
+| content_hash | VARCHAR(64) | NOT NULL | SHA-256 of original content |
+| urdu_content | TEXT | NOT NULL | Translated content |
+| created_at | TIMESTAMP | NOT NULL, DEFAULT NOW() | Translation time |
+| expires_at | TIMESTAMP | NOT NULL | Cache expiration (30 days) |
 
 **Validation Rules**:
-- personalization_type MUST be one of: 'beginner', 'hardware', 'urdu'
+- content_hash must be 64-char hex string (SHA-256)
 - expires_at MUST be > created_at
-- UNIQUE constraint on (user_id, chapter_id, personalization_type)
+- UNIQUE constraint on (chapter_id, content_hash)
 
 **Indexes**:
 - PRIMARY KEY (id)
-- UNIQUE INDEX (user_id, chapter_id, personalization_type)
+- UNIQUE INDEX (chapter_id, content_hash)
 - INDEX (expires_at)
+
+---
+
+### 7. PlatformStats
+
+**Description**: Platform-wide statistics for landing page.
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| id | INTEGER | PK, DEFAULT 1 | Singleton row |
+| books_count | INTEGER | NOT NULL, DEFAULT 1 | Number of books/courses |
+| active_users | INTEGER | NOT NULL, DEFAULT 0 | Active user count |
+| ai_interactions | INTEGER | NOT NULL, DEFAULT 0 | Total AI skill invocations |
+| updated_at | TIMESTAMP | NOT NULL, DEFAULT NOW() | Last stats update |
+
+**Validation Rules**:
+- Only one row exists (id = 1)
+- All counts >= 0
+
+**Indexes**:
+- PRIMARY KEY (id)
 
 ---
 
 ## Design Tokens Entity (Frontend Only)
 
-**Description**: CSS custom properties for design system consistency. Not stored in database.
+**Description**: CSS custom properties for Dark Blue + Yellow theme. Not stored in database.
 
 ```typescript
 interface DesignTokens {
   colors: {
-    deepSpaceBlue: '#0B1020';
-    neuralIndigo: '#1E2A78';
-    electricCyan: '#00E5FF';
-    softAiViolet: '#7C7CFF';
-    textPrimary: '#EAEAF0';
-    textMuted: '#9AA4BF';
-    cardBackground: '#121830';
-    divider: '#1F2A44';
+    primaryDark: '#1a1a2e';      // Dark Blue - backgrounds
+    primaryAccent: '#ffd700';    // Yellow - accents, CTAs
+    background: '#0f0f1a';       // Darker background variant
+    surface: '#252540';          // Card backgrounds
+    textPrimary: '#ffffff';      // Primary text
+    textSecondary: '#b0b0c0';    // Muted text
+    hover: '#ffd700';            // Yellow hover
+    focusRing: 'rgba(255, 215, 0, 0.3)'; // Yellow focus
   };
   typography: {
     fontHeading: 'Space Grotesk';
@@ -222,6 +246,7 @@ interface DesignTokens {
     md: '16px';
     lg: '24px';
     xl: '32px';
+    '2xl': '48px';
   };
   animation: {
     hoverLift: '-8px';
@@ -242,17 +267,17 @@ Created (is_active=true)
     │
     ├── User sends message → Updated (updated_at refreshed)
     │
-    ├── User closes chat → Closed (is_active=false, closed_at set)
+    ├── User closes chat → Closed (is_active=false)
     │
-    └── Inactivity timeout (30min) → Closed (is_active=false, closed_at set)
+    └── Inactivity timeout (30min) → Closed (is_active=false)
 ```
 
 ### UserProfile Completion States
 
 ```
-Incomplete (after signup, before profile setup)
+Created (after Clerk signup)
     │
-    └── User completes profile form → Complete
+    └── User completes background questions → Complete
         │
         └── User updates preferences → Updated (updated_at refreshed)
 ```
@@ -261,16 +286,16 @@ Incomplete (after signup, before profile setup)
 
 ## Qdrant Vector Schema
 
-**Collection**: `course_content`
+**Collection**: `textbook_content`
 
 | Field | Type | Description |
 |-------|------|-------------|
 | id | string | UUID of the chunk |
 | vector | float[768] | text-embedding-004 embedding |
-| payload.chapter_id | string | Chapter UUID |
-| payload.chapter_slug | string | Chapter slug for reference |
+| payload.chapter_id | string | Chapter identifier |
+| payload.module | string | Module name |
 | payload.section_title | string | Section within chapter |
-| payload.content | string | Original text chunk |
+| payload.content | string | Original text chunk (~500 tokens) |
 | payload.token_count | int | Chunk token count |
 
 **Index Configuration**:
@@ -284,29 +309,29 @@ Incomplete (after signup, before profile setup)
 
 ```sql
 -- Enums
-CREATE TYPE skill_level AS ENUM ('beginner', 'intermediate', 'advanced');
+CREATE TYPE software_level AS ENUM ('beginner', 'intermediate', 'advanced');
+CREATE TYPE experience_level AS ENUM ('none', 'some', 'extensive');
 CREATE TYPE language_preference AS ENUM ('en', 'ur');
 CREATE TYPE message_role AS ENUM ('user', 'assistant');
-CREATE TYPE personalization_type AS ENUM ('beginner', 'hardware', 'urdu');
 
--- Users (Better-Auth managed)
+-- Users (Clerk-linked)
 CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id VARCHAR(255) PRIMARY KEY,          -- Clerk user_id
     email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    email_verified BOOLEAN DEFAULT false,
+    name VARCHAR(255),
+    avatar_url VARCHAR(500),
+    role VARCHAR(50) NOT NULL DEFAULT 'student',
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
--- User Profiles
+-- User Profiles (Personalization)
 CREATE TABLE user_profiles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    display_name VARCHAR(100),
-    software_background TEXT,
-    hardware_background TEXT,
-    skill_level skill_level NOT NULL DEFAULT 'beginner',
+    user_id VARCHAR(255) UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    software_level software_level NOT NULL DEFAULT 'beginner',
+    hardware_exposure experience_level NOT NULL DEFAULT 'none',
+    robotics_experience experience_level NOT NULL DEFAULT 'none',
     language_preference language_preference NOT NULL DEFAULT 'en',
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
@@ -314,13 +339,12 @@ CREATE TABLE user_profiles (
 
 -- Chapters
 CREATE TABLE chapters (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    slug VARCHAR(100) UNIQUE NOT NULL,
+    id VARCHAR(255) PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
-    module_number INTEGER NOT NULL CHECK (module_number BETWEEN 1 AND 5),
-    chapter_number INTEGER NOT NULL,
+    module VARCHAR(50) NOT NULL,
+    week INTEGER NOT NULL CHECK (week BETWEEN 1 AND 16),
     content_path VARCHAR(500) NOT NULL,
-    embedding_collection VARCHAR(100) NOT NULL,
+    learning_objectives TEXT[] NOT NULL DEFAULT '{}',
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
@@ -328,13 +352,11 @@ CREATE TABLE chapters (
 -- Chat Sessions
 CREATE TABLE chat_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-    chapter_id UUID REFERENCES chapters(id) ON DELETE SET NULL,
-    session_token VARCHAR(64) UNIQUE NOT NULL,
+    user_id VARCHAR(255) REFERENCES users(id) ON DELETE SET NULL,
+    chapter_id VARCHAR(255) REFERENCES chapters(id) ON DELETE SET NULL,
     is_active BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    closed_at TIMESTAMP
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 -- Chat Messages
@@ -344,40 +366,56 @@ CREATE TABLE chat_messages (
     role message_role NOT NULL,
     content TEXT NOT NULL CHECK (content <> ''),
     selected_context TEXT,
+    skill_used VARCHAR(100),
     tokens_used INTEGER,
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
--- Personalized Content Cache
-CREATE TABLE personalized_content (
+-- Translation Cache
+CREATE TABLE translation_cache (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    chapter_id UUID NOT NULL REFERENCES chapters(id) ON DELETE CASCADE,
-    personalization_type personalization_type NOT NULL,
-    content TEXT NOT NULL,
-    agent_used VARCHAR(100) NOT NULL,
+    chapter_id VARCHAR(255) NOT NULL REFERENCES chapters(id) ON DELETE CASCADE,
+    content_hash VARCHAR(64) NOT NULL,
+    urdu_content TEXT NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     expires_at TIMESTAMP NOT NULL,
-    UNIQUE (user_id, chapter_id, personalization_type)
+    UNIQUE (chapter_id, content_hash)
 );
 
+-- Platform Statistics (Singleton)
+CREATE TABLE platform_stats (
+    id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+    books_count INTEGER NOT NULL DEFAULT 1,
+    active_users INTEGER NOT NULL DEFAULT 0,
+    ai_interactions INTEGER NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- Insert singleton row
+INSERT INTO platform_stats (id) VALUES (1) ON CONFLICT DO NOTHING;
+
 -- Indexes
+CREATE INDEX idx_user_profiles_user ON user_profiles(user_id);
+CREATE INDEX idx_chapters_module ON chapters(module);
+CREATE INDEX idx_chapters_week ON chapters(week);
 CREATE INDEX idx_chat_sessions_user ON chat_sessions(user_id);
 CREATE INDEX idx_chat_sessions_chapter ON chat_sessions(chapter_id);
+CREATE INDEX idx_chat_sessions_active ON chat_sessions(is_active, updated_at);
 CREATE INDEX idx_chat_messages_session_time ON chat_messages(session_id, created_at);
-CREATE INDEX idx_personalized_content_expiry ON personalized_content(expires_at);
-CREATE INDEX idx_chapters_module ON chapters(module_number, chapter_number);
+CREATE INDEX idx_translation_cache_chapter ON translation_cache(chapter_id);
+CREATE INDEX idx_translation_cache_expiry ON translation_cache(expires_at);
 ```
 
 ---
 
 ## Summary
 
-6 entities defined with clear relationships:
-- **User** ↔ **UserProfile** (1:1)
+7 entities defined with clear relationships:
+- **User** ↔ **UserProfile** (1:1) - Clerk-linked with personalization prefs
 - **User** → **ChatSession** (1:N)
 - **Chapter** → **ChatSession** (1:N)
 - **ChatSession** → **ChatMessage** (1:N)
-- **User** + **Chapter** → **PersonalizedContent** (N:M with caching)
+- **Chapter** → **TranslationCache** (1:N)
+- **PlatformStats** (Singleton for landing page)
 
-Plus Qdrant vector schema for RAG and frontend DesignTokens interface.
+Plus Qdrant vector schema for RAG and frontend DesignTokens interface for Dark Blue + Yellow theme.

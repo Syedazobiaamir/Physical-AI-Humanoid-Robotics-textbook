@@ -325,3 +325,167 @@ def _mdx_to_basic_html(mdx_content: str) -> str:
     )
 
     return f'<div class="adapted-content">\n{html_content}\n</div>'
+
+
+# =======================
+# AI-Powered Personalization
+# =======================
+
+from ..agents.personalization_agent import (
+    personalization_agent,
+    PersonalizationProfile as AgentProfile
+)
+
+
+class PersonalizeContentRequest(BaseModel):
+    """Request for AI-powered content personalization"""
+    content: str = Field(..., description="Original content to personalize")
+    software_level: str = Field(
+        default="intermediate",
+        description="User's software skill level: beginner, intermediate, advanced"
+    )
+    hardware_exposure: str = Field(
+        default="none",
+        description="User's hardware exposure: none, some, extensive"
+    )
+    robotics_experience: str = Field(
+        default="none",
+        description="User's robotics experience: none, some, extensive"
+    )
+    language_preference: str = Field(
+        default="en",
+        description="Language preference: en, ur"
+    )
+    chapter_id: Optional[str] = Field(
+        default=None,
+        description="Optional chapter ID for context"
+    )
+
+
+class PersonalizeContentResponse(BaseModel):
+    """Response from AI-powered personalization"""
+    success: bool
+    content: str
+    original_content: str
+    adaptations_applied: list
+    strategy: str
+    metadata: Dict[str, Any] = {}
+
+
+@router.post("/personalize", response_model=PersonalizeContentResponse)
+async def personalize_content(
+    request: PersonalizeContentRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Personalize content using AI-powered personalization agent
+
+    This endpoint uses the PersonalizationAgent to adapt content based on
+    user profile. The agent selects appropriate strategies:
+    - Beginner: Simplified explanations with analogies
+    - Hardware-focused: Hardware-centric adaptations
+    - Advanced: Deeper technical content
+
+    - **content**: The original content to personalize
+    - **software_level**: User's software skill level
+    - **hardware_exposure**: User's hardware exposure level
+    - **robotics_experience**: User's robotics experience
+    - **language_preference**: User's language preference
+    - **chapter_id**: Optional chapter context
+    """
+    try:
+        # Create profile for personalization agent
+        profile = AgentProfile(
+            software_level=request.software_level,
+            hardware_exposure=request.hardware_exposure,
+            robotics_experience=request.robotics_experience,
+            language_preference=request.language_preference
+        )
+
+        # Prepare context
+        context = None
+        if request.chapter_id:
+            context = {"chapter_id": request.chapter_id}
+
+        # Run personalization agent
+        result = await personalization_agent.personalize(
+            content=request.content,
+            profile=profile,
+            context=context
+        )
+
+        logger.info(f"Content personalized with strategy: {result.metadata.get('strategy', 'unknown')}")
+
+        return PersonalizeContentResponse(
+            success=result.success,
+            content=result.content,
+            original_content=result.original_content,
+            adaptations_applied=result.adaptations_applied,
+            strategy=result.metadata.get("strategy", "default"),
+            metadata=result.metadata
+        )
+
+    except Exception as e:
+        logger.error(f"Error in AI personalization: {str(e)}")
+        # Return original content on error
+        return PersonalizeContentResponse(
+            success=False,
+            content=request.content,
+            original_content=request.content,
+            adaptations_applied=[],
+            strategy="error",
+            metadata={"error": str(e)}
+        )
+
+
+@router.post("/profile")
+async def save_personalization_profile(
+    request: PreferencesUpdateRequest,
+    user_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Save user personalization profile
+
+    Called from the onboarding flow to save user background information.
+    This data is used by the PersonalizationAgent to adapt content.
+    """
+    try:
+        # In production, user_id would come from JWT
+        if not user_id:
+            return {"success": True, "message": "Profile preferences saved (no user context)"}
+
+        import uuid
+
+        # Create or update profile
+        result = await db.execute(
+            select(PersonalizationProfile).where(
+                PersonalizationProfile.user_id == user_id
+            )
+        )
+        profile = result.scalar_one_or_none()
+
+        if profile:
+            profile.skill_level = request.skill_level
+            profile.customizations = request.customizations or {}
+            profile.updated_at = datetime.utcnow()
+        else:
+            profile = PersonalizationProfile(
+                id=str(uuid.uuid4()),
+                user_id=user_id,
+                skill_level=request.skill_level,
+                customizations=request.customizations or {}
+            )
+            db.add(profile)
+
+        await db.commit()
+        logger.info(f"Personalization profile saved for user: {user_id}")
+
+        return {"success": True, "profile_id": profile.id if profile else None}
+
+    except Exception as e:
+        logger.error(f"Error saving profile: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to save profile"
+        )

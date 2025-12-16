@@ -96,10 +96,10 @@ async def health_check():
 # API v1 routes - using try/except for import flexibility
 try:
     # Try relative imports first (for local development with package structure)
-    from .api import content, rag, auth, personalization, progress, translation, quizzes
+    from .api import content, rag, auth, personalization, progress, translation, quizzes, stats, user
 except ImportError:
     # Fall back to absolute imports (for Vercel deployment)
-    from src.api import content, rag, auth, personalization, progress, translation, quizzes
+    from src.api import content, rag, auth, personalization, progress, translation, quizzes, stats, user
 
 app.include_router(content.router, prefix="/api/v1/content", tags=["Content"])
 app.include_router(rag.router, prefix="/api/v1/rag", tags=["RAG"])
@@ -108,6 +108,8 @@ app.include_router(personalization.router, prefix="/api/v1/personalization", tag
 app.include_router(progress.router, prefix="/api/v1/progress", tags=["Progress"])
 app.include_router(translation.router, prefix="/api/v1/translation", tags=["Translation"])
 app.include_router(quizzes.router, prefix="/api/v1/quizzes", tags=["Quizzes"])
+app.include_router(stats.router, prefix="/api/v1/stats", tags=["Statistics"])
+app.include_router(user.router, prefix="/api/v1/users", tags=["Users"])
 
 if __name__ == "__main__":
     import uvicorn

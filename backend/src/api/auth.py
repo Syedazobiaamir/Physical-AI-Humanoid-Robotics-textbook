@@ -274,3 +274,189 @@ async def refresh_token(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error": "refresh_failed", "message": "Failed to refresh token"}
         )
+
+
+# =======================
+# Clerk Webhook Handlers
+# =======================
+
+# Clerk webhook secret for signature verification
+import os
+import json
+import hmac
+import hashlib
+from fastapi import Request, Header
+
+CLERK_WEBHOOK_SECRET = os.getenv("CLERK_WEBHOOK_SECRET", "")
+
+
+class ClerkWebhookRequest(BaseModel):
+    """Clerk webhook request payload"""
+    data: dict
+    object: str
+    type: str
+
+
+class ClerkUserData(BaseModel):
+    """Clerk user data from webhook"""
+    id: str
+    email_addresses: list
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    image_url: Optional[str] = None
+    username: Optional[str] = None
+
+
+def verify_clerk_signature(payload: bytes, signature: str, secret: str) -> bool:
+    """
+    Verify Clerk webhook signature using HMAC-SHA256
+    """
+    if not secret:
+        logger.warning("Clerk webhook secret not configured")
+        return True  # Allow in development without secret
+
+    try:
+        expected = hmac.new(
+            secret.encode('utf-8'),
+            payload,
+            hashlib.sha256
+        ).hexdigest()
+
+        return hmac.compare_digest(f"sha256={expected}", signature)
+    except Exception as e:
+        logger.error(f"Signature verification error: {str(e)}")
+        return False
+
+
+@router.post("/webhook/clerk")
+async def clerk_webhook(
+    request: Request,
+    svix_id: Optional[str] = Header(None, alias="svix-id"),
+    svix_timestamp: Optional[str] = Header(None, alias="svix-timestamp"),
+    svix_signature: Optional[str] = Header(None, alias="svix-signature"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Handle Clerk webhook events for user synchronization
+
+    Supported events:
+    - user.created: Create new user in database
+    - user.updated: Update existing user
+    - user.deleted: Remove user from database
+
+    Clerk sends webhooks with Svix signatures for verification.
+    """
+    try:
+        # Get raw payload for signature verification
+        payload = await request.body()
+
+        # Verify signature if secret is configured
+        if CLERK_WEBHOOK_SECRET and svix_signature:
+            # Build the signed content
+            signed_content = f"{svix_id}.{svix_timestamp}.{payload.decode('utf-8')}"
+
+            if not verify_clerk_signature(signed_content.encode('utf-8'), svix_signature, CLERK_WEBHOOK_SECRET):
+                logger.warning("Invalid Clerk webhook signature")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid webhook signature"
+                )
+
+        # Parse the webhook payload
+        data = json.loads(payload)
+        event_type = data.get("type", "")
+        event_data = data.get("data", {})
+
+        logger.info(f"Received Clerk webhook: {event_type}")
+
+        if event_type == "user.created":
+            # Create new user from Clerk data
+            clerk_user_id = event_data.get("id")
+            email_addresses = event_data.get("email_addresses", [])
+            primary_email = next(
+                (e.get("email_address") for e in email_addresses if e.get("id") == event_data.get("primary_email_address_id")),
+                email_addresses[0].get("email_address") if email_addresses else None
+            )
+
+            if not primary_email:
+                logger.warning(f"No email found for Clerk user {clerk_user_id}")
+                return {"status": "skipped", "reason": "no_email"}
+
+            # Check if user already exists
+            result = await db.execute(select(User).where(User.id == clerk_user_id))
+            existing_user = result.scalar_one_or_none()
+
+            if existing_user:
+                logger.info(f"User {clerk_user_id} already exists, updating")
+                existing_user.email = primary_email
+                existing_user.name = f"{event_data.get('first_name', '')} {event_data.get('last_name', '')}".strip() or primary_email.split("@")[0]
+                existing_user.avatar_url = event_data.get("image_url")
+                await db.commit()
+                return {"status": "updated", "user_id": clerk_user_id}
+
+            # Create new user
+            user = User(
+                id=clerk_user_id,  # Use Clerk user ID as primary key
+                email=primary_email,
+                name=f"{event_data.get('first_name', '')} {event_data.get('last_name', '')}".strip() or primary_email.split("@")[0],
+                role=UserRole.STUDENT.value,
+                oauth_provider="clerk",
+                oauth_id=clerk_user_id,
+                avatar_url=event_data.get("image_url")
+            )
+            db.add(user)
+            await db.commit()
+            logger.info(f"Created user from Clerk: {primary_email}")
+            return {"status": "created", "user_id": clerk_user_id}
+
+        elif event_type == "user.updated":
+            # Update existing user
+            clerk_user_id = event_data.get("id")
+            result = await db.execute(select(User).where(User.id == clerk_user_id))
+            user = result.scalar_one_or_none()
+
+            if not user:
+                logger.warning(f"User {clerk_user_id} not found for update")
+                return {"status": "not_found"}
+
+            email_addresses = event_data.get("email_addresses", [])
+            primary_email = next(
+                (e.get("email_address") for e in email_addresses if e.get("id") == event_data.get("primary_email_address_id")),
+                None
+            )
+
+            if primary_email:
+                user.email = primary_email
+            user.name = f"{event_data.get('first_name', '')} {event_data.get('last_name', '')}".strip() or user.name
+            user.avatar_url = event_data.get("image_url") or user.avatar_url
+
+            await db.commit()
+            logger.info(f"Updated user from Clerk: {clerk_user_id}")
+            return {"status": "updated", "user_id": clerk_user_id}
+
+        elif event_type == "user.deleted":
+            # Delete user
+            clerk_user_id = event_data.get("id")
+            result = await db.execute(select(User).where(User.id == clerk_user_id))
+            user = result.scalar_one_or_none()
+
+            if user:
+                await db.delete(user)
+                await db.commit()
+                logger.info(f"Deleted user from Clerk webhook: {clerk_user_id}")
+                return {"status": "deleted", "user_id": clerk_user_id}
+            else:
+                return {"status": "not_found"}
+
+        else:
+            logger.debug(f"Unhandled Clerk event type: {event_type}")
+            return {"status": "ignored", "event_type": event_type}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Clerk webhook error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Webhook processing failed"
+        )

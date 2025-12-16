@@ -1,96 +1,70 @@
-# Research: Unified UI/UX + Chatbot Design System
+# Research: AI-Native Technical Textbook Platform
 
 **Feature**: 001-unified-design-system
-**Date**: 2025-12-13
+**Date**: 2025-12-15 (Updated)
 **Status**: Complete
 
 ## Overview
 
-This document captures research findings for technology choices, integration patterns, and best practices for the Unified Design System feature.
+This document captures research findings for technology choices, integration patterns, and best practices for the AI-Native Technical Textbook Platform with unified Dark Blue + Yellow theme.
 
 ---
 
-## 1. Frontend Framework: Docusaurus 3.x
+## 1. Frontend Architecture: Docusaurus + Next.js Components
 
 ### Decision
-Use Docusaurus 3.x with React 18 for the frontend, leveraging its built-in MDX support and documentation-focused features.
+Use Docusaurus 3.x for the textbook with React 18 components shared with Next.js landing page.
 
 ### Rationale
-- Native MDX support for interactive course content
-- Built-in search, navigation, and versioning
-- React 18 compatibility enables modern hooks and concurrent features
-- Strong community and Vercel deployment support
-- Theming system supports custom design tokens
+- Docusaurus excels at documentation/textbook content with MDX
+- React components can be shared between Docusaurus and landing page
+- Unified theme system through shared CSS variables
+- Both frameworks deploy seamlessly to Vercel
 
 ### Alternatives Considered
 | Alternative | Reason Not Chosen |
 |-------------|-------------------|
-| Next.js | More complex setup for documentation-style content; Docusaurus optimized for this use case |
-| Gatsby | Slower build times; less active maintenance |
-| Astro | Less mature MDX ecosystem; fewer documentation-specific features |
+| Next.js only | Less optimized for documentation-heavy content |
+| Gatsby | Slower builds, less active maintenance |
+| Astro | Less mature MDX ecosystem for educational content |
 
-### Integration Notes
-- Custom React components in `src/components/` integrate seamlessly with MDX
-- CSS variables for design tokens in `src/css/custom.css`
-- Swizzle navbar/footer for custom implementations
-
----
-
-## 2. Animation Library: Framer Motion
-
-### Decision
-Use Framer Motion for all UI animations (hover effects, page transitions, timeline animations).
-
-### Rationale
-- Declarative API integrates well with React components
-- Hardware-accelerated animations for smooth 60fps performance
-- Built-in gesture support for hover, tap, drag
-- Layout animations for card hover lift effects
-- SSR-compatible for Docusaurus static generation
-
-### Alternatives Considered
-| Alternative | Reason Not Chosen |
-|-------------|-------------------|
-| CSS Animations | Limited for complex sequences; harder to coordinate |
-| React Spring | Steeper learning curve; less intuitive API |
-| GSAP | Larger bundle size; licensing considerations |
-
-### Implementation Pattern
-```tsx
-// Example: Knowledge Card hover animation
-<motion.div
-  whileHover={{ y: -8, boxShadow: "0 8px 30px rgba(0, 229, 255, 0.3)" }}
-  transition={{ type: "spring", stiffness: 300 }}
->
-  <KnowledgeCard />
-</motion.div>
+### Integration Pattern
+```text
+frontend/
+├── src/components/    # Shared React components (theme, chatbot)
+├── src/theme/         # Docusaurus theme overrides
+└── shared/theme-tokens.json  # CSS variables for both
 ```
 
 ---
 
-## 3. Styling Approach: CSS Variables + Tailwind
+## 2. Design System: Dark Blue + Yellow Theme
 
 ### Decision
-Use CSS custom properties (variables) for design tokens with Tailwind CSS for utility classes.
+Implement unified Dark Blue (#1a1a2e) + Yellow (#ffd700) brand across all components per Constitution Principle I.
 
 ### Rationale
-- CSS variables enable runtime theme switching
-- Tailwind provides consistent spacing, typography utilities
-- Smaller bundle than full component libraries
-- Easy to enforce design system consistency
+- Consistent brand identity across Landing, Book, Auth, Chatbot
+- High contrast for accessibility (WCAG 2.1 AA)
+- Dark theme reduces eye strain for educational reading
+- Yellow accents for call-to-action visibility
 
 ### Design Tokens Structure
 ```css
 :root {
-  /* Colors */
-  --color-deep-space-blue: #0B1020;
-  --color-neural-indigo: #1E2A78;
-  --color-electric-cyan: #00E5FF;
-  --color-soft-ai-violet: #7C7CFF;
-  --color-text-primary: #EAEAF0;
-  --color-text-muted: #9AA4BF;
-  --color-card-bg: #121830;
-  --color-divider: #1F2A44;
+  /* Primary Colors */
+  --color-primary-dark: #1a1a2e;      /* Dark Blue - backgrounds */
+  --color-primary-accent: #ffd700;    /* Yellow - accents, CTAs */
+
+  /* Supporting Colors */
+  --color-background: #0f0f1a;        /* Darker background variant */
+  --color-surface: #252540;           /* Card backgrounds */
+  --color-text-primary: #ffffff;      /* Primary text */
+  --color-text-secondary: #b0b0c0;    /* Muted text */
+
+  /* Interactive States */
+  --color-hover: #ffd700;             /* Yellow hover */
+  --color-focus: rgba(255, 215, 0, 0.3); /* Yellow focus ring */
 
   /* Typography */
   --font-heading: 'Space Grotesk', sans-serif;
@@ -103,196 +77,219 @@ Use CSS custom properties (variables) for design tokens with Tailwind CSS for ut
   --space-md: 16px;
   --space-lg: 24px;
   --space-xl: 32px;
+  --space-2xl: 48px;
 }
 ```
 
 ---
 
-## 4. RAG Backend: FastAPI + Qdrant + Gemini
+## 3. Animation Library: Framer Motion
 
 ### Decision
-Use FastAPI for API endpoints, Qdrant for vector storage/search, and Google Gemini for response generation.
+Use Framer Motion for all UI animations (hover effects, page transitions, stats counters).
 
 ### Rationale
-- **FastAPI**: Async-native, automatic OpenAPI docs, Python ecosystem
-- **Qdrant**: Purpose-built for vector search, free cloud tier, REST API
-- **Gemini**: Strong reasoning for educational content, competitive pricing
+- Declarative API integrates well with React
+- Hardware-accelerated for smooth 60fps
+- Built-in gesture support for interactive elements
+- SSR-compatible for Docusaurus static generation
+
+### Key Animation Patterns
+```tsx
+// Stats card counter animation
+<motion.span animate={{ opacity: 1 }} initial={{ opacity: 0 }}>
+  {count.toLocaleString()}
+</motion.span>
+
+// Feature card hover
+<motion.div whileHover={{ y: -8, boxShadow: "0 8px 30px rgba(255, 215, 0, 0.2)" }}>
+  <FeatureCard />
+</motion.div>
+```
+
+---
+
+## 4. Authentication: Clerk
+
+### Decision
+Use Clerk for authentication per Constitution v4.0.0 Principle IV.
+
+### Rationale
+- Constitution mandates Clerk as auth provider
+- Pre-built UI components match any theme
+- Built-in session management with 7+ day persistence
+- Easy to collect user background during signup
 
 ### Alternatives Considered
-| Component | Alternative | Reason Not Chosen |
-|-----------|-------------|-------------------|
-| Backend | Express.js | Python preferred for AI/ML integrations |
-| Vectors | Pinecone | Higher cost; Qdrant free tier sufficient |
-| LLM | OpenAI GPT-4 | Gemini specified in requirements; cost-effective |
+| Alternative | Reason Not Chosen |
+|-------------|-------------------|
+| Better-Auth | Constitution v4.0.0 specifies Clerk |
+| Auth0 | Higher cost, more complex setup |
+| Custom auth | Security risk, longer development |
 
-### RAG Pipeline Architecture
+### User Background Collection Flow
+1. User clicks "Sign Up" → Clerk handles email/password
+2. After signup, redirect to onboarding form
+3. Collect: software_level, hardware_exposure, robotics_experience
+4. Store in Neon Postgres linked to Clerk user_id
+
+---
+
+## 5. RAG Backend: FastAPI + Qdrant + Gemini
+
+### Decision
+Use FastAPI for API endpoints, Qdrant for vector search, and Gemini API for response generation.
+
+### Rationale
+- **FastAPI**: Async-native, automatic OpenAPI docs, Python AI/ML ecosystem
+- **Qdrant**: Purpose-built for vectors, free cloud tier, REST API
+- **Gemini**: Strong reasoning for educational content, specified in requirements
+
+### RAG Pipeline
 ```
-User Query → Embedding (text-embedding-004) → Qdrant Search →
-Context Retrieval → Gemini Prompt → Response Generation
+User Question → Text Embedding → Qdrant Search (top-5) →
+Context Assembly → Gemini Prompt → Response with Sources
 ```
 
 ### Embedding Strategy
-- Chunk course content by section (~500 tokens)
-- Store chapter metadata with vectors
-- Use cosine similarity for retrieval (top-k=5)
+- Chunk textbook by section (~500 tokens)
+- Include chapter/module metadata with vectors
+- Cosine similarity search, k=5
 
 ---
 
-## 5. Authentication: Better-Auth
+## 6. AI Skills Architecture
 
 ### Decision
-Use Better-Auth for authentication with session-based tokens stored in Neon Postgres.
+Implement AI features as modular skills per Constitution Principle II (no autonomous agents).
 
 ### Rationale
-- Simple integration with Next.js/React
-- Built-in session management
-- Supports email/password auth
-- Easy to extend for profile collection
+- Skills have defined inputs/outputs/errors
+- Easy to test independently
+- Predictable behavior for users
+- Graceful degradation when services fail
 
-### Alternatives Considered
-| Alternative | Reason Not Chosen |
-|-------------|-------------------|
-| Auth0 | Higher cost for scale; overkill for MVP |
-| Clerk | Additional dependency; Better-Auth specified in requirements |
-| NextAuth.js | Better-Auth provides similar features with simpler setup |
-
-### Profile Collection Flow
-1. Initial signup (email, password)
-2. Post-signup redirect to profile setup
-3. Collect: software background, hardware background, skill level, language preference
-4. Store in Neon Postgres `user_profiles` table
-
----
-
-## 6. Database: Neon Serverless Postgres
-
-### Decision
-Use Neon Serverless Postgres for user profiles, preferences, and chat session metadata.
-
-### Rationale
-- Serverless scales to zero (cost-effective)
-- PostgreSQL compatibility (standard SQL)
-- Built-in connection pooling
-- Free tier sufficient for ~100 concurrent users
-
-### Schema Overview
-```sql
--- Users table (Better-Auth managed)
-users (id, email, password_hash, created_at, updated_at)
-
--- Profile extension
-user_profiles (
-  user_id FK,
-  software_background TEXT,
-  hardware_background TEXT,
-  skill_level ENUM('beginner', 'intermediate', 'advanced'),
-  language_preference ENUM('en', 'ur'),
-  created_at, updated_at
-)
-
--- Chat sessions
-chat_sessions (
-  id, user_id FK, chapter_id,
-  created_at, updated_at
-)
-
--- Chat messages
-chat_messages (
-  id, session_id FK,
-  role ENUM('user', 'assistant'),
-  content TEXT,
-  selected_context TEXT NULL,
-  created_at
-)
-```
-
----
-
-## 7. Deployment: Vercel + Alternative Backend
-
-### Decision
-Deploy frontend to Vercel; backend to Render or Railway as serverless functions.
-
-### Rationale
-- **Vercel**: Optimized for React/Next.js/Docusaurus, automatic CI/CD
-- **Render/Railway**: Python-native, simpler FastAPI deployment than Vercel serverless
-
-### Alternatives Considered
-| Alternative | Reason Not Chosen |
-|-------------|-------------------|
-| Vercel Serverless (Python) | Cold start issues; limited Python support |
-| AWS Lambda | More complex setup; overkill for MVP |
-| Fly.io | Good option; Render preferred for simplicity |
-
-### Environment Variables
-```
-# Frontend (Vercel)
-NEXT_PUBLIC_API_URL=https://api.example.com
-
-# Backend (Render/Railway)
-GEMINI_API_KEY=...
-QDRANT_API_KEY=...
-QDRANT_URL=https://xxx.qdrant.io
-NEON_POSTGRES_URL=postgres://...
-BETTER_AUTH_SECRET=...
-```
-
----
-
-## 8. AI Agents Architecture
-
-### Decision
-Implement agents as Python classes with a common base interface, each with specific skills.
-
-### Rationale
-- Single responsibility per agent
-- Skills are composable functions
-- Easy to test and extend
-- Consistent prompt engineering patterns
-
-### Agent-Skill Mapping
-| Agent | Primary Skills | Use Case |
-|-------|---------------|----------|
-| PhysicalAIInstructor | real_world_robot_example | General teaching |
-| EmbodiedIntelligenceAgent | hardware_mapping | Sensors/actuators content |
-| BeginnerSimplifierAgent | simplify_for_beginner | Beginner personalization |
-| HardwareContextAgent | hardware_mapping | Hardware background users |
-| UrduTranslationAgent | urdu_translate | Translation |
+### Skill Definitions
+| Skill | Input | Output | Error Handling |
+|-------|-------|--------|----------------|
+| Book Content | question, user_profile | RAG response | Fallback to keyword search |
+| Context Selection | question, selected_text | Scoped response | Show "select text" prompt |
+| Personalization | content, profile | Adapted content | Return original content |
+| Translation | content, target_lang | Translated content | Show original with error |
 
 ### Skill Interface
 ```python
-class Skill:
-    async def execute(self, content: str, context: dict) -> str:
-        """Transform content based on skill logic."""
+class Skill(ABC):
+    @abstractmethod
+    async def execute(self, input: SkillInput) -> SkillOutput:
         pass
+
+@dataclass
+class SkillOutput:
+    success: bool
+    data: Optional[str]
+    error: Optional[str]
 ```
 
 ---
 
-## 9. Text Selection & Context Capture
+## 7. Database: Neon Serverless Postgres
 
 ### Decision
-Use browser Selection API with React hooks to capture selected text and trigger chatbot context.
+Use Neon Serverless Postgres for user profiles, personalization preferences, and statistics.
+
+### Rationale
+- Serverless scales to zero (cost-effective)
+- PostgreSQL standard (familiar SQL)
+- Built-in connection pooling
+- Free tier handles 100+ concurrent users
+
+### Schema Updates
+```sql
+-- Users (linked to Clerk)
+users (
+  id VARCHAR PRIMARY KEY,        -- Clerk user_id
+  email VARCHAR UNIQUE NOT NULL,
+  name VARCHAR,
+  software_level ENUM('beginner', 'intermediate', 'advanced'),
+  hardware_exposure ENUM('none', 'some', 'extensive'),
+  robotics_experience ENUM('none', 'some', 'extensive'),
+  language_preference ENUM('en', 'ur') DEFAULT 'en',
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+)
+
+-- Platform Statistics
+platform_stats (
+  id SERIAL PRIMARY KEY,
+  books_count INT DEFAULT 1,
+  active_users INT DEFAULT 0,
+  ai_interactions INT DEFAULT 0,
+  updated_at TIMESTAMP DEFAULT NOW()
+)
+
+-- Translation Cache
+translation_cache (
+  id VARCHAR PRIMARY KEY,
+  chapter_id VARCHAR NOT NULL,
+  content_hash VARCHAR NOT NULL,
+  urdu_content TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW(),
+  expires_at TIMESTAMP
+)
+```
+
+---
+
+## 8. Deployment Strategy
+
+### Decision
+Deploy frontend to Vercel, backend to Vercel Serverless Functions or Railway.
+
+### Rationale
+- Vercel optimized for React/Docusaurus
+- Automatic CI/CD from GitHub
+- Railway provides simpler Python deployment if Vercel cold starts are problematic
+
+### Environment Variables
+```bash
+# Frontend (Vercel)
+NEXT_PUBLIC_API_URL=https://api.example.com
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_...
+CLERK_SECRET_KEY=sk_...
+
+# Backend (Vercel/Railway)
+GEMINI_API_KEY=...
+QDRANT_API_KEY=...
+QDRANT_URL=https://xxx.qdrant.io
+DATABASE_URL=postgres://...
+CLERK_SECRET_KEY=sk_...
+```
+
+---
+
+## 9. Text Selection for Context
+
+### Decision
+Use browser Selection API with React hooks for "Ask about selected text" feature.
 
 ### Rationale
 - Native browser API (no dependencies)
 - Works across all modern browsers
-- Can capture surrounding context (paragraph, section)
+- Can include surrounding context for better responses
 
-### Implementation Pattern
+### Implementation
 ```typescript
 function useTextSelection() {
   const [selectedText, setSelectedText] = useState('');
 
   useEffect(() => {
-    const handleSelectionChange = () => {
-      const selection = window.getSelection();
-      if (selection && selection.toString().trim()) {
-        setSelectedText(selection.toString());
-      }
+    const handleSelection = () => {
+      const selection = window.getSelection()?.toString().trim();
+      if (selection) setSelectedText(selection);
     };
-    document.addEventListener('selectionchange', handleSelectionChange);
-    return () => document.removeEventListener('selectionchange', handleSelectionChange);
+    document.addEventListener('mouseup', handleSelection);
+    return () => document.removeEventListener('mouseup', handleSelection);
   }, []);
 
   return { selectedText, clearSelection: () => setSelectedText('') };
@@ -304,33 +301,38 @@ function useTextSelection() {
 ## 10. Performance Optimization
 
 ### Decision
-Implement lazy loading, code splitting, and caching strategies to meet <3s load target.
+Implement lazy loading, code splitting, and caching to meet <3s load target.
 
 ### Strategies
 | Strategy | Implementation |
 |----------|----------------|
-| Code Splitting | Dynamic imports for chatbot modal, auth modal |
-| Image Optimization | Docusaurus built-in image optimization |
+| Code Splitting | Dynamic import for ChatWidget, AuthModal |
+| Image Optimization | Docusaurus built-in + WebP format |
 | Font Loading | `font-display: swap` for web fonts |
-| API Caching | SWR/React Query for chat history, user profile |
+| API Caching | SWR for user profile, stats |
 | Animation | GPU-accelerated transforms only |
 
-### Lighthouse Targets
-- Performance: >90
-- Accessibility: >95
-- Best Practices: >90
-- SEO: >90
+### Performance Targets
+- LCP (Largest Contentful Paint): <2.5s
+- FID (First Input Delay): <100ms
+- CLS (Cumulative Layout Shift): <0.1
+- Lighthouse Performance: >90
 
 ---
 
 ## Summary
 
-All technical decisions have been made with clear rationale. No NEEDS CLARIFICATION items remain. The stack is:
+All technical decisions finalized. Key updates from previous research:
 
-- **Frontend**: Docusaurus 3.x + React 18 + Framer Motion + Tailwind CSS
+1. **Auth changed from Better-Auth to Clerk** per Constitution v4.0.0
+2. **Theme updated to Dark Blue (#1a1a2e) + Yellow (#ffd700)** per Constitution Principle I
+3. **Skills architecture confirmed** per Constitution Principle II
+
+Stack summary:
+- **Frontend**: Docusaurus 3.x + React 18 + Framer Motion + CSS Variables
 - **Backend**: FastAPI + Qdrant + Gemini API
-- **Auth**: Better-Auth + Neon Postgres
-- **Deployment**: Vercel (frontend) + Render/Railway (backend)
-- **AI**: 5 agents + 6 reusable skills in Python
+- **Auth**: Clerk
+- **Database**: Neon Postgres
+- **Deployment**: Vercel (frontend + backend functions)
 
-Ready to proceed to Phase 1: Design & Contracts.
+Ready to proceed to Phase 1: Data Model & Contracts.
