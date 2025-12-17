@@ -30,11 +30,6 @@ const config: Config = {
     clerkPublishableKey: process.env.CLERK_PUBLISHABLE_KEY || '',
   },
 
-  // Client modules to inject Clerk key
-  clientModules: [
-    './src/clientModules/clerkInit.ts',
-  ],
-
   i18n: {
     defaultLocale: 'en',
     locales: ['en', 'ur'],
