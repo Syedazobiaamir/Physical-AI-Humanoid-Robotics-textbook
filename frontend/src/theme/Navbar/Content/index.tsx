@@ -3,12 +3,14 @@ import Content from '@theme-original/Navbar/Content';
 import type ContentType from '@theme/Navbar/Content';
 import type {WrapperProps} from '@docusaurus/types';
 import BrowserOnly from '@docusaurus/BrowserOnly';
+import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import styles from './styles.module.css';
 
 type Props = WrapperProps<typeof ContentType>;
 
 // Clerk Auth Buttons - loaded dynamically
 function ClerkAuthButtons() {
+  const {siteConfig} = useDocusaurusContext();
   const [ClerkComponents, setClerkComponents] = React.useState<{
     ClerkProvider: React.ComponentType<any>;
     SignedIn: React.ComponentType<any>;
@@ -41,10 +43,8 @@ function ClerkAuthButtons() {
 
   const { ClerkProvider, SignedIn, SignedOut, SignInButton, SignUpButton, UserButton } = ClerkComponents;
 
-  // Get Clerk key from window or fallback
-  const clerkKey = (window as any).__CLERK_PUBLISHABLE_KEY__ ||
-                   (window as any).CLERK_PUBLISHABLE_KEY ||
-                   '';
+  // Get Clerk key from Docusaurus config customFields
+  const clerkKey = (siteConfig.customFields?.clerkPublishableKey as string) || '';
 
   if (!clerkKey) {
     return (

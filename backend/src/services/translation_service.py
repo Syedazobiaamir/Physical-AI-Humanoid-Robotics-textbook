@@ -316,27 +316,39 @@ class TranslationService:
         """Translate a single chunk using Gemini"""
         import google.generativeai as genai
 
-        prompt = f"""You are a professional Urdu translator for educational content.
+        prompt = f"""آپ ایک ماہر اردو مترجم ہیں۔ آپ کو انگریزی متن کا مکمل اردو ترجمہ کرنا ہے۔
 
-CRITICAL RULES - YOU MUST FOLLOW:
-1. Translate EVERY SINGLE WORD to Urdu - do NOT skip anything
-2. Do NOT summarize - translate the COMPLETE text word by word
-3. Keep technical terms in English with Urdu transliteration: Python (پائتھون)
-4. Preserve all formatting: headers, lists, bold, italic
-5. Keep placeholders exactly: <<<CODE_BLOCK_N>>> and <<<HEADING_N>>>
-6. Use formal educational Urdu
-7. The translation MUST be the same length or longer than the original
+آپ کو یہ کام کرنا ہے:
+- ہر لفظ کا اردو میں ترجمہ کریں
+- کچھ بھی انگریزی میں نہ چھوڑیں (صرف ٹیکنیکل اصطلاحات کے علاوہ)
+- تمام جملے مکمل ترجمہ کریں
 
-INPUT TEXT TO TRANSLATE COMPLETELY:
+STRICT RULES:
+1. TRANSLATE EVERY SENTENCE TO URDU - No English text should remain
+2. For technical terms ONLY (like Python, ROS, API), write: English (اردو تلفظ)
+   Example: Python (پائتھون), API (اے پی آئی), machine learning (مشین لرننگ)
+3. ALL other words MUST be in Urdu script only
+4. Do NOT leave any English words untranslated except technical terms
+5. Preserve formatting: **, *, #, -, 1., etc.
+6. Keep placeholders exactly: <<<CODE_BLOCK_N>>> and <<<HEADING_N>>>
+7. Use formal educational Urdu (فصیح اردو)
+
+WRONG: "یہ ایک introduction ہے about robotics"
+CORRECT: "یہ روبوٹکس (robotics) کے بارے میں ایک تعارف ہے"
+
+WRONG: "The robot can move" → "The robot حرکت کر سکتا ہے"
+CORRECT: "The robot can move" → "روبوٹ (robot) حرکت کر سکتا ہے"
+
+انگریزی متن جس کا ترجمہ کرنا ہے:
 {content}
 
-COMPLETE URDU TRANSLATION:"""
+مکمل اردو ترجمہ (صرف اردو میں لکھیں):"""
 
         response = model.generate_content(
             prompt,
             generation_config=genai.types.GenerationConfig(
                 max_output_tokens=16384,  # Maximum output for complete translation
-                temperature=0.2,  # Lower temperature for accuracy
+                temperature=0.1,  # Lower temperature for accuracy and consistency
             )
         )
         return response.text
@@ -389,22 +401,30 @@ COMPLETE URDU TRANSLATION:"""
                     "messages": [
                         {
                             "role": "system",
-                            "content": """You are a professional translator specializing in technical content translation from English to Urdu.
+                            "content": """آپ ایک ماہر اردو مترجم ہیں۔ آپ کو انگریزی متن کا مکمل اردو ترجمہ کرنا ہے۔
 
-Rules:
-1. Translate the content to Urdu while preserving markdown formatting
-2. Keep all technical terms in English with Urdu transliteration in parentheses
-3. Preserve code block placeholders (<<<CODE_BLOCK_N>>>) exactly as they are
-4. Preserve heading placeholders (<<<HEADING_N>>>) exactly as they are
-5. Maintain the same paragraph structure
-6. Use formal Urdu suitable for educational content"""
+STRICT RULES - FOLLOW EXACTLY:
+1. TRANSLATE EVERY SENTENCE TO URDU - No English text should remain
+2. For technical terms ONLY (like Python, ROS, API), write: English (اردو تلفظ)
+   Example: Python (پائتھون), API (اے پی آئی), machine learning (مشین لرننگ)
+3. ALL other words MUST be in Urdu script only
+4. Do NOT leave any English words untranslated except technical terms
+5. Preserve markdown formatting: **, *, #, -, 1., etc.
+6. Keep placeholders exactly: <<<CODE_BLOCK_N>>> and <<<HEADING_N>>>
+7. Use formal educational Urdu (فصیح اردو)
+
+WRONG: "یہ ایک introduction ہے about robotics"
+CORRECT: "یہ روبوٹکس (robotics) کے بارے میں ایک تعارف ہے"
+
+WRONG: "The robot can move" → "The robot حرکت کر سکتا ہے"
+CORRECT: "The robot can move" → "روبوٹ (robot) حرکت کر سکتا ہے" """
                         },
                         {
                             "role": "user",
-                            "content": f"Translate the following to Urdu:\n\n{content}"
+                            "content": f"اس انگریزی متن کا مکمل اردو ترجمہ کریں:\n\n{content}"
                         }
                     ],
-                    "temperature": 0.3
+                    "temperature": 0.1
                 },
                 timeout=60.0
             )
@@ -429,20 +449,28 @@ Rules:
                 },
                 json={
                     "model": "claude-sonnet-4-20250514",
-                    "max_tokens": 4096,
-                    "system": """You are a professional translator specializing in technical content translation from English to Urdu.
+                    "max_tokens": 8192,
+                    "system": """آپ ایک ماہر اردو مترجم ہیں۔ آپ کو انگریزی متن کا مکمل اردو ترجمہ کرنا ہے۔
 
-Rules:
-1. Translate the content to Urdu while preserving markdown formatting
-2. Keep all technical terms in English with Urdu transliteration in parentheses
-3. Preserve code block placeholders (<<<CODE_BLOCK_N>>>) exactly as they are
-4. Preserve heading placeholders (<<<HEADING_N>>>) exactly as they are
-5. Maintain the same paragraph structure
-6. Use formal Urdu suitable for educational content""",
+STRICT RULES - FOLLOW EXACTLY:
+1. TRANSLATE EVERY SENTENCE TO URDU - No English text should remain
+2. For technical terms ONLY (like Python, ROS, API), write: English (اردو تلفظ)
+   Example: Python (پائتھون), API (اے پی آئی), machine learning (مشین لرننگ)
+3. ALL other words MUST be in Urdu script only
+4. Do NOT leave any English words untranslated except technical terms
+5. Preserve markdown formatting: **, *, #, -, 1., etc.
+6. Keep placeholders exactly: <<<CODE_BLOCK_N>>> and <<<HEADING_N>>>
+7. Use formal educational Urdu (فصیح اردو)
+
+WRONG: "یہ ایک introduction ہے about robotics"
+CORRECT: "یہ روبوٹکس (robotics) کے بارے میں ایک تعارف ہے"
+
+WRONG: "The robot can move" → "The robot حرکت کر سکتا ہے"
+CORRECT: "The robot can move" → "روبوٹ (robot) حرکت کر سکتا ہے" """,
                     "messages": [
                         {
                             "role": "user",
-                            "content": f"Translate the following to Urdu:\n\n{content}"
+                            "content": f"اس انگریزی متن کا مکمل اردو ترجمہ کریں:\n\n{content}"
                         }
                     ]
                 },
