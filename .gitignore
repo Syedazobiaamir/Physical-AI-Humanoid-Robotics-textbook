@@ -98,3 +98,5 @@ temp/
 *.tmp
 *.bak
 *.swp
+.vercel
+.env*.local
