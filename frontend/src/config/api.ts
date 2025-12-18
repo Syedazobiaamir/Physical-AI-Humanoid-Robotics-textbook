@@ -26,9 +26,8 @@
  *   7. Redeploy frontend
  */
 
-// Production backend URL (deployed on Vercel)
-// For a monorepo deployment, the API is on the same domain, so we use a relative path.
-const PRODUCTION_API_URL = '';
+// Production backend URL (for monorepo, use relative path)
+const PRODUCTION_API_URL = '/api/v1';
 
 // Local development URL
 const DEVELOPMENT_API_URL = 'http://localhost:8000/api/v1';
