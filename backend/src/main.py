@@ -59,11 +59,15 @@ default_origins = [
     "https://*.vercel.app",
 ]
 env_origins = os.getenv("BACKEND_CORS_ORIGINS", "").split(",")
-origins = [o.strip() for o in env_origins if o.strip()] or default_origins
+origins = list(default_origins)
+for origin in env_origins:
+    stripped_origin = origin.strip()
+    if stripped_origin and stripped_origin not in origins:
+        origins.append(stripped_origin)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for Vercel deployment
+    allow_origins=origins,  # Use the dynamically constructed origins list
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

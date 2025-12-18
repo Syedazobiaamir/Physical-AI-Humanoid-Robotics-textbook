@@ -100,3 +100,5 @@ temp/
 *.swp
 .vercel
 .env*.local
+frontend/nul
+nul
