@@ -27,7 +27,8 @@
  */
 
 // Production backend URL (deployed on Vercel)
-const PRODUCTION_API_URL = 'https://physical-ai-humanoid-robotics-textb-psi-amber.vercel.app/api/v1';
+// For a monorepo deployment, the API is on the same domain, so we use a relative path.
+const PRODUCTION_API_URL = '';
 
 // Local development URL
 const DEVELOPMENT_API_URL = 'http://localhost:8000/api/v1';
