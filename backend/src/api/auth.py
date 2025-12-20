@@ -82,6 +82,8 @@ async def oauth_login(request: OAuthLoginRequest):
 
     - **provider**: OAuth provider to use ('google' or 'github')
     - **redirect_uri**: URI to redirect to after OAuth completion
+
+    Note: This is a legacy endpoint. For production use, Clerk authentication is recommended.
     """
     provider = get_oauth_provider(request.provider)
 
@@ -89,6 +91,22 @@ async def oauth_login(request: OAuthLoginRequest):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"error": "invalid_provider", "message": f"Unsupported OAuth provider: {request.provider}"}
+        )
+
+    # Check if provider is configured - ALWAYS check for OAuth credentials
+    has_method = hasattr(provider, 'is_configured')
+    is_configured = provider.is_configured() if has_method else True
+    logger.info(f"OAuth check: provider={request.provider}, has_method={has_method}, is_configured={is_configured}")
+
+    if has_method and not is_configured:
+        logger.warning(f"OAuth not configured for {request.provider}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error": "oauth_not_configured",
+                "message": f"{request.provider.title()} OAuth is not configured. Please use Clerk authentication (Sign In button) or configure OAuth credentials.",
+                "recommendation": "Use Clerk authentication - it's already set up and ready to use."
+            }
         )
 
     # Generate state for CSRF protection
@@ -99,6 +117,12 @@ async def oauth_login(request: OAuthLoginRequest):
         auth_url = provider.get_authorization_url(request.redirect_uri, state)
         logger.info(f"OAuth login initiated for provider: {request.provider}")
         return {"auth_url": auth_url}
+    except ValueError as e:
+        logger.warning(f"OAuth not configured: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": "oauth_not_configured", "message": str(e)}
+        )
     except Exception as e:
         logger.error(f"Error generating OAuth URL: {str(e)}")
         raise HTTPException(

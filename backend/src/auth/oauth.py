@@ -58,8 +58,15 @@ class GoogleOAuth(OAuthProvider):
             GOOGLE_USER_INFO_URL
         )
 
+    def is_configured(self) -> bool:
+        """Check if Google OAuth credentials are configured"""
+        return bool(self.client_id and self.client_secret)
+
     def get_authorization_url(self, redirect_uri: str, state: str) -> str:
         """Generate Google OAuth authorization URL"""
+        if not self.is_configured():
+            raise ValueError("Google OAuth not configured. Please use Clerk authentication or set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.")
+
         params = {
             "client_id": self.client_id,
             "redirect_uri": redirect_uri,
@@ -114,8 +121,15 @@ class GitHubOAuth(OAuthProvider):
             GITHUB_USER_INFO_URL
         )
 
+    def is_configured(self) -> bool:
+        """Check if GitHub OAuth credentials are configured"""
+        return bool(self.client_id and self.client_secret)
+
     def get_authorization_url(self, redirect_uri: str, state: str) -> str:
         """Generate GitHub OAuth authorization URL"""
+        if not self.is_configured():
+            raise ValueError("GitHub OAuth not configured. Please use Clerk authentication or set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET environment variables.")
+
         params = {
             "client_id": self.client_id,
             "redirect_uri": redirect_uri,

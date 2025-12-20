@@ -2,6 +2,7 @@
 Main FastAPI application for Physical AI & Humanoid Robotics Textbook Platform
 
 This module serves as the entry point for both local development and Vercel deployment.
+Updated: Fixed OAuth configuration check
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
