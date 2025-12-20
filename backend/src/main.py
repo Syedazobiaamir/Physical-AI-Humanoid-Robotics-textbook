@@ -53,11 +53,13 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Configure CORS - include Vercel domains and localhost
+# Configure CORS - include Vercel, Hugging Face, and localhost domains
 default_origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "https://*.vercel.app",
+    "https://*.hf.space",
+    "https://*.huggingface.co",
 ]
 env_origins = os.getenv("BACKEND_CORS_ORIGINS", "").split(",")
 origins = list(default_origins)
