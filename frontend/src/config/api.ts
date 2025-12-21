@@ -27,7 +27,7 @@
  */
 
 // Production backend URL (for monorepo, use relative path)
-const PRODUCTION_API_URL = 'https://backend-nine-omega-60.vercel.app/api/v1';
+const PRODUCTION_API_URL = 'https://zobi345-physical-ai-textbook-api.hf.space/api/v1';
 
 // Local development URL
 const DEVELOPMENT_API_URL = 'http://localhost:8000/api/v1';
