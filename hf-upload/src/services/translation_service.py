@@ -236,30 +236,20 @@ class TranslationService:
             if cached:
                 return cached, True
 
-        # Preserve code blocks and headings if requested
+        # Preserve code blocks only (headings should be translated)
         code_blocks = {}
-        headings = {}
 
         processed_content = content
         if preserve_formatting:
+            # Only preserve code blocks - they should NOT be translated
             processed_content, code_blocks = self._preserve_code_blocks(processed_content)
-            processed_content, headings = self._preserve_headings(processed_content)
+            # NOTE: We don't preserve headings anymore - they should be fully translated to Urdu
 
         # Perform translation
         translated = await self._translate_with_llm(processed_content)
 
-        # Restore preserved elements
-        if preserve_formatting:
-            # Restore headings with translated text
-            for placeholder, heading_info in headings.items():
-                # The heading text inside the placeholder should be translated
-                # but the markdown syntax preserved
-                translated = translated.replace(
-                    f"{heading_info['level']} {placeholder}",
-                    f"{heading_info['level']} {heading_info['text']}"
-                )
-
-            # Restore code blocks (untranslated)
+        # Restore code blocks only (they stay in English)
+        if preserve_formatting and code_blocks:
             translated = self._restore_code_blocks(translated, code_blocks)
 
         # Apply technical term transliterations
@@ -316,33 +306,44 @@ class TranslationService:
         """Translate a single chunk using Gemini"""
         import google.generativeai as genai
 
-        prompt = f"""آپ ایک ماہر اردو مترجم ہیں۔ آپ کو انگریزی متن کا مکمل اردو ترجمہ کرنا ہے۔
+        prompt = f"""آپ ایک ماہر پیشہ ور اردو مترجم ہیں۔ آپ کا کام انگریزی متن کو مکمل طور پر اردو میں ترجمہ کرنا ہے۔
 
-آپ کو یہ کام کرنا ہے:
-- ہر لفظ کا اردو میں ترجمہ کریں
-- کچھ بھی انگریزی میں نہ چھوڑیں (صرف ٹیکنیکل اصطلاحات کے علاوہ)
-- تمام جملے مکمل ترجمہ کریں
+## سخت قواعد - لازمی پیروی کریں:
 
-STRICT RULES:
-1. TRANSLATE EVERY SENTENCE TO URDU - No English text should remain
-2. For technical terms ONLY (like Python, ROS, API), write: English (اردو تلفظ)
-   Example: Python (پائتھون), API (اے پی آئی), machine learning (مشین لرننگ)
-3. ALL other words MUST be in Urdu script only
-4. Do NOT leave any English words untranslated except technical terms
-5. Preserve formatting: **, *, #, -, 1., etc.
-6. Keep placeholders exactly: <<<CODE_BLOCK_N>>> and <<<HEADING_N>>>
-7. Use formal educational Urdu (فصیح اردو)
+### 1. ہر لفظ کا ترجمہ کریں
+- ہر انگریزی لفظ کا اردو میں ترجمہ ہونا چاہیے
+- کوئی انگریزی جملہ یا فقرہ نہ چھوڑیں
+- "Introduction", "Chapter", "Learning", "Overview" جیسے عام الفاظ کا بھی ترجمہ کریں
 
-WRONG: "یہ ایک introduction ہے about robotics"
-CORRECT: "یہ روبوٹکس (robotics) کے بارے میں ایک تعارف ہے"
+### 2. صرف ٹیکنیکل اصطلاحات کے لیے
+Python, ROS, API, CPU, GPU جیسی ٹیکنیکل اصطلاحات کے لیے یہ فارمیٹ استعمال کریں:
+انگریزی (اردو تلفظ) - مثال: Python (پائتھون)، API (اے پی آئی)
 
-WRONG: "The robot can move" → "The robot حرکت کر سکتا ہے"
-CORRECT: "The robot can move" → "روبوٹ (robot) حرکت کر سکتا ہے"
+### 3. مارک ڈاؤن فارمیٹنگ
+- عنوانات (#, ##, ###) کا متن اردو میں ترجمہ کریں
+- بولڈ (**text**) اور اٹیلک (*text*) فارمیٹنگ رکھیں
+- فہرستیں (-, 1., 2.) رکھیں
+- کوڈ بلاکس (<<<CODE_BLOCK_N>>>) کو بالکل ایسے ہی رکھیں
 
-انگریزی متن جس کا ترجمہ کرنا ہے:
+### 4. غلط اور درست مثالیں
+
+❌ غلط: "## Introduction to Robotics" → "## Introduction روبوٹکس کا"
+✅ درست: "## Introduction to Robotics" → "## روبوٹکس کا تعارف"
+
+❌ غلط: "This chapter covers machine learning" → "This chapter میں machine learning ہے"
+✅ درست: "This chapter covers machine learning" → "اس باب میں مشین لرننگ (machine learning) شامل ہے"
+
+❌ غلط: "Learning Objectives" → "Learning Objectives"
+✅ درست: "Learning Objectives" → "سیکھنے کے مقاصد"
+
+---
+
+انگریزی متن:
 {content}
 
-مکمل اردو ترجمہ (صرف اردو میں لکھیں):"""
+---
+
+مکمل اردو ترجمہ (ہر لفظ اردو میں):"""
 
         response = model.generate_content(
             prompt,
@@ -401,27 +402,24 @@ CORRECT: "The robot can move" → "روبوٹ (robot) حرکت کر سکتا ہ�
                     "messages": [
                         {
                             "role": "system",
-                            "content": """آپ ایک ماہر اردو مترجم ہیں۔ آپ کو انگریزی متن کا مکمل اردو ترجمہ کرنا ہے۔
+                            "content": """آپ ایک ماہر پیشہ ور اردو مترجم ہیں۔ ہر انگریزی لفظ کا اردو میں ترجمہ کریں۔
 
-STRICT RULES - FOLLOW EXACTLY:
-1. TRANSLATE EVERY SENTENCE TO URDU - No English text should remain
-2. For technical terms ONLY (like Python, ROS, API), write: English (اردو تلفظ)
-   Example: Python (پائتھون), API (اے پی آئی), machine learning (مشین لرننگ)
-3. ALL other words MUST be in Urdu script only
-4. Do NOT leave any English words untranslated except technical terms
-5. Preserve markdown formatting: **, *, #, -, 1., etc.
-6. Keep placeholders exactly: <<<CODE_BLOCK_N>>> and <<<HEADING_N>>>
-7. Use formal educational Urdu (فصیح اردو)
+سخت قواعد:
+1. ہر لفظ اردو میں - کوئی انگریزی نہ چھوڑیں
+2. صرف ٹیکنیکل اصطلاحات (Python, API, ROS) کے لیے: انگریزی (اردو تلفظ)
+3. "Introduction" → "تعارف"، "Chapter" → "باب"، "Learning" → "سیکھنا"
+4. مارک ڈاؤن فارمیٹنگ (#, **, *) رکھیں
+5. کوڈ بلاکس (<<<CODE_BLOCK_N>>>) کو ایسے ہی رکھیں
 
-WRONG: "یہ ایک introduction ہے about robotics"
-CORRECT: "یہ روبوٹکس (robotics) کے بارے میں ایک تعارف ہے"
+❌ غلط: "## Introduction" → "## Introduction"
+✅ درست: "## Introduction" → "## تعارف"
 
-WRONG: "The robot can move" → "The robot حرکت کر سکتا ہے"
-CORRECT: "The robot can move" → "روبوٹ (robot) حرکت کر سکتا ہے" """
+❌ غلط: "This is about robotics" → "This is about روبوٹکس"
+✅ درست: "This is about robotics" → "یہ روبوٹکس (robotics) کے بارے میں ہے" """
                         },
                         {
                             "role": "user",
-                            "content": f"اس انگریزی متن کا مکمل اردو ترجمہ کریں:\n\n{content}"
+                            "content": f"مکمل اردو ترجمہ کریں (ہر لفظ اردو میں):\n\n{content}"
                         }
                     ],
                     "temperature": 0.1
@@ -450,27 +448,24 @@ CORRECT: "The robot can move" → "روبوٹ (robot) حرکت کر سکتا ہ�
                 json={
                     "model": "claude-sonnet-4-20250514",
                     "max_tokens": 8192,
-                    "system": """آپ ایک ماہر اردو مترجم ہیں۔ آپ کو انگریزی متن کا مکمل اردو ترجمہ کرنا ہے۔
+                    "system": """آپ ایک ماہر پیشہ ور اردو مترجم ہیں۔ ہر انگریزی لفظ کا اردو میں ترجمہ کریں۔
 
-STRICT RULES - FOLLOW EXACTLY:
-1. TRANSLATE EVERY SENTENCE TO URDU - No English text should remain
-2. For technical terms ONLY (like Python, ROS, API), write: English (اردو تلفظ)
-   Example: Python (پائتھون), API (اے پی آئی), machine learning (مشین لرننگ)
-3. ALL other words MUST be in Urdu script only
-4. Do NOT leave any English words untranslated except technical terms
-5. Preserve markdown formatting: **, *, #, -, 1., etc.
-6. Keep placeholders exactly: <<<CODE_BLOCK_N>>> and <<<HEADING_N>>>
-7. Use formal educational Urdu (فصیح اردو)
+سخت قواعد:
+1. ہر لفظ اردو میں - کوئی انگریزی نہ چھوڑیں
+2. صرف ٹیکنیکل اصطلاحات (Python, API, ROS) کے لیے: انگریزی (اردو تلفظ)
+3. "Introduction" → "تعارف"، "Chapter" → "باب"، "Learning" → "سیکھنا"
+4. مارک ڈاؤن فارمیٹنگ (#, **, *) رکھیں
+5. کوڈ بلاکس (<<<CODE_BLOCK_N>>>) کو ایسے ہی رکھیں
 
-WRONG: "یہ ایک introduction ہے about robotics"
-CORRECT: "یہ روبوٹکس (robotics) کے بارے میں ایک تعارف ہے"
+❌ غلط: "## Introduction" → "## Introduction"
+✅ درست: "## Introduction" → "## تعارف"
 
-WRONG: "The robot can move" → "The robot حرکت کر سکتا ہے"
-CORRECT: "The robot can move" → "روبوٹ (robot) حرکت کر سکتا ہے" """,
+❌ غلط: "This is about robotics" → "This is about روبوٹکس"
+✅ درست: "This is about robotics" → "یہ روبوٹکس (robotics) کے بارے میں ہے" """,
                     "messages": [
                         {
                             "role": "user",
-                            "content": f"اس انگریزی متن کا مکمل اردو ترجمہ کریں:\n\n{content}"
+                            "content": f"مکمل اردو ترجمہ کریں (ہر لفظ اردو میں):\n\n{content}"
                         }
                     ]
                 },
