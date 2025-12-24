@@ -306,17 +306,42 @@ class TranslationService:
         """Translate a single chunk using Gemini"""
         import google.generativeai as genai
 
-        prompt = f"""آپ ایک ماہر پیشہ ور اردو مترجم ہیں۔ آپ کا کام انگریزی متن کو مکمل طور پر اردو میں ترجمہ کرنا ہے۔
+        prompt = f"""آپ ایک ماہر پیشہ ور اردو مترجم ہیں۔ آپ کا کام انگریزی متن کو 100% مکمل طور پر اردو میں ترجمہ کرنا ہے۔
+
+⚠️ انتہائی اہم: کوئی بھی انگریزی لفظ نہیں چھوڑنا - سب کچھ اردو میں ہونا چاہیے!
 
 ## سخت قواعد - لازمی پیروی کریں:
 
-### 1. ہر لفظ کا ترجمہ کریں
-- ہر انگریزی لفظ کا اردو میں ترجمہ ہونا چاہیے
-- کوئی انگریزی جملہ یا فقرہ نہ چھوڑیں
-- "Introduction", "Chapter", "Learning", "Overview" جیسے عام الفاظ کا بھی ترجمہ کریں
+### 1. 100% اردو ترجمہ - کوئی استثناء نہیں
+- ہر ایک انگریزی لفظ کا اردو میں ترجمہ ہونا لازمی ہے
+- کوئی انگریزی جملہ، فقرہ، یا لفظ نہ چھوڑیں
+- تمام عام الفاظ کا ترجمہ کریں:
+  • "Introduction" → "تعارف"
+  • "Chapter" → "باب"
+  • "Learning" → "سیکھنا"
+  • "Overview" → "جائزہ"
+  • "Objectives" → "مقاصد"
+  • "Summary" → "خلاصہ"
+  • "Example" → "مثال"
+  • "Note" → "نوٹ"
+  • "Important" → "اہم"
+  • "Exercise" → "مشق"
+  • "This" → "یہ"
+  • "That" → "وہ"
+  • "The" → (جملے میں ضم کریں)
+  • "A/An" → "ایک"
+  • "Is/Are" → "ہے/ہیں"
+  • "Will" → "گا/گی/گے"
+  • "Can" → "سکتا/سکتی/سکتے"
+  • "To" → "کو/کے لیے"
+  • "And" → "اور"
+  • "Or" → "یا"
+  • "But" → "لیکن"
+  • "Week" → "ہفتہ"
+  • "Day" → "دن"
 
-### 2. صرف ٹیکنیکل اصطلاحات کے لیے
-Python, ROS, API, CPU, GPU جیسی ٹیکنیکل اصطلاحات کے لیے یہ فارمیٹ استعمال کریں:
+### 2. صرف ٹیکنیکل اصطلاحات کے لیے (صرف یہ الفاظ)
+Python, ROS, ROS2, API, SDK, CPU, GPU, SLAM, IMU, LiDAR, RGB, TCP/IP, HTTP, JSON, XML, YAML, Git, Docker, Gazebo, Ubuntu, Linux, Windows جیسی ٹیکنیکل اصطلاحات کے لیے یہ فارمیٹ استعمال کریں:
 انگریزی (اردو تلفظ) - مثال: Python (پائتھون)، API (اے پی آئی)
 
 ### 3. مارک ڈاؤن فارمیٹنگ
@@ -331,10 +356,16 @@ Python, ROS, API, CPU, GPU جیسی ٹیکنیکل اصطلاحات کے لیے 
 ✅ درست: "## Introduction to Robotics" → "## روبوٹکس کا تعارف"
 
 ❌ غلط: "This chapter covers machine learning" → "This chapter میں machine learning ہے"
-✅ درست: "This chapter covers machine learning" → "اس باب میں مشین لرننگ (machine learning) شامل ہے"
+✅ درست: "This chapter covers machine learning" → "اس باب میں مشین لرننگ شامل ہے"
 
 ❌ غلط: "Learning Objectives" → "Learning Objectives"
 ✅ درست: "Learning Objectives" → "سیکھنے کے مقاصد"
+
+❌ غلط: "Week 1: Introduction" → "Week 1: Introduction"
+✅ درست: "Week 1: Introduction" → "ہفتہ ۱: تعارف"
+
+❌ غلط: "By the end of this chapter, you will be able to:" → "By the end of this chapter, آپ یہ کر سکیں گے:"
+✅ درست: "By the end of this chapter, you will be able to:" → "اس باب کے اختتام پر، آپ یہ کر سکیں گے:"
 
 ---
 
@@ -343,7 +374,7 @@ Python, ROS, API, CPU, GPU جیسی ٹیکنیکل اصطلاحات کے لیے 
 
 ---
 
-مکمل اردو ترجمہ (ہر لفظ اردو میں):"""
+مکمل اردو ترجمہ (100% اردو - کوئی انگریزی نہیں سوائے ٹیکنیکل اصطلاحات):"""
 
         response = model.generate_content(
             prompt,
@@ -402,24 +433,26 @@ Python, ROS, API, CPU, GPU جیسی ٹیکنیکل اصطلاحات کے لیے 
                     "messages": [
                         {
                             "role": "system",
-                            "content": """آپ ایک ماہر پیشہ ور اردو مترجم ہیں۔ ہر انگریزی لفظ کا اردو میں ترجمہ کریں۔
+                            "content": """آپ ایک ماہر پیشہ ور اردو مترجم ہیں۔ آپ کا کام 100% مکمل اردو ترجمہ کرنا ہے۔
+
+⚠️ انتہائی اہم: کوئی بھی انگریزی لفظ نہیں چھوڑنا!
 
 سخت قواعد:
-1. ہر لفظ اردو میں - کوئی انگریزی نہ چھوڑیں
-2. صرف ٹیکنیکل اصطلاحات (Python, API, ROS) کے لیے: انگریزی (اردو تلفظ)
-3. "Introduction" → "تعارف"، "Chapter" → "باب"، "Learning" → "سیکھنا"
+1. ہر ایک لفظ اردو میں - کوئی انگریزی نہیں
+2. عام الفاظ کا ترجمہ: Introduction→تعارف، Chapter→باب، Learning→سیکھنا، Week→ہفتہ، Overview→جائزہ، Objectives→مقاصد، Summary→خلاصہ، Example→مثال، This→یہ، That→وہ، And→اور، Or→یا، But→لیکن
+3. صرف ٹیکنیکل اصطلاحات (Python, ROS, API, CPU, GPU, SLAM) کے لیے: انگریزی (اردو تلفظ)
 4. مارک ڈاؤن فارمیٹنگ (#, **, *) رکھیں
 5. کوڈ بلاکس (<<<CODE_BLOCK_N>>>) کو ایسے ہی رکھیں
 
-❌ غلط: "## Introduction" → "## Introduction"
-✅ درست: "## Introduction" → "## تعارف"
+❌ غلط: "Week 1: Introduction" → "Week 1: Introduction"
+✅ درست: "Week 1: Introduction" → "ہفتہ ۱: تعارف"
 
-❌ غلط: "This is about robotics" → "This is about روبوٹکس"
-✅ درست: "This is about robotics" → "یہ روبوٹکس (robotics) کے بارے میں ہے" """
+❌ غلط: "This chapter covers robotics" → "This chapter میں robotics ہے"
+✅ درست: "This chapter covers robotics" → "اس باب میں روبوٹکس شامل ہے" """
                         },
                         {
                             "role": "user",
-                            "content": f"مکمل اردو ترجمہ کریں (ہر لفظ اردو میں):\n\n{content}"
+                            "content": f"100% اردو ترجمہ کریں (کوئی انگریزی نہیں سوائے ٹیکنیکل اصطلاحات):\n\n{content}"
                         }
                     ],
                     "temperature": 0.1
@@ -448,24 +481,26 @@ Python, ROS, API, CPU, GPU جیسی ٹیکنیکل اصطلاحات کے لیے 
                 json={
                     "model": "claude-sonnet-4-20250514",
                     "max_tokens": 8192,
-                    "system": """آپ ایک ماہر پیشہ ور اردو مترجم ہیں۔ ہر انگریزی لفظ کا اردو میں ترجمہ کریں۔
+                    "system": """آپ ایک ماہر پیشہ ور اردو مترجم ہیں۔ آپ کا کام 100% مکمل اردو ترجمہ کرنا ہے۔
+
+⚠️ انتہائی اہم: کوئی بھی انگریزی لفظ نہیں چھوڑنا!
 
 سخت قواعد:
-1. ہر لفظ اردو میں - کوئی انگریزی نہ چھوڑیں
-2. صرف ٹیکنیکل اصطلاحات (Python, API, ROS) کے لیے: انگریزی (اردو تلفظ)
-3. "Introduction" → "تعارف"، "Chapter" → "باب"، "Learning" → "سیکھنا"
+1. ہر ایک لفظ اردو میں - کوئی انگریزی نہیں
+2. عام الفاظ کا ترجمہ: Introduction→تعارف، Chapter→باب، Learning→سیکھنا، Week→ہفتہ، Overview→جائزہ، Objectives→مقاصد، Summary→خلاصہ، Example→مثال، This→یہ، That→وہ، And→اور، Or→یا، But→لیکن
+3. صرف ٹیکنیکل اصطلاحات (Python, ROS, API, CPU, GPU, SLAM) کے لیے: انگریزی (اردو تلفظ)
 4. مارک ڈاؤن فارمیٹنگ (#, **, *) رکھیں
 5. کوڈ بلاکس (<<<CODE_BLOCK_N>>>) کو ایسے ہی رکھیں
 
-❌ غلط: "## Introduction" → "## Introduction"
-✅ درست: "## Introduction" → "## تعارف"
+❌ غلط: "Week 1: Introduction" → "Week 1: Introduction"
+✅ درست: "Week 1: Introduction" → "ہفتہ ۱: تعارف"
 
-❌ غلط: "This is about robotics" → "This is about روبوٹکس"
-✅ درست: "This is about robotics" → "یہ روبوٹکس (robotics) کے بارے میں ہے" """,
+❌ غلط: "This chapter covers robotics" → "This chapter میں robotics ہے"
+✅ درست: "This chapter covers robotics" → "اس باب میں روبوٹکس شامل ہے" """,
                     "messages": [
                         {
                             "role": "user",
-                            "content": f"مکمل اردو ترجمہ کریں (ہر لفظ اردو میں):\n\n{content}"
+                            "content": f"100% اردو ترجمہ کریں (کوئی انگریزی نہیں سوائے ٹیکنیکل اصطلاحات):\n\n{content}"
                         }
                     ]
                 },
