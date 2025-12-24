@@ -55,7 +55,7 @@ const TranslateUrdu: React.FC<TranslateUrduProps> = ({ chapterId }) => {
       }
 
       if (!content.trim()) {
-        setError('No content found to translate. Please wait for the page to fully load and try again.');
+        setError('ترجمہ کے لیے مواد نہیں ملا۔ براہ کرم صفحہ مکمل لوڈ ہونے کا انتظار کریں اور دوبارہ کوشش کریں۔');
         setIsLoading(false);
         return;
       }
@@ -88,7 +88,7 @@ const TranslateUrdu: React.FC<TranslateUrduProps> = ({ chapterId }) => {
       }
     } catch (err) {
       console.error('Translation error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to translate. Please try again.');
+      setError(err instanceof Error ? err.message : 'ترجمہ ناکام ہوگیا۔ براہ کرم دوبارہ کوشش کریں۔');
     } finally {
       setIsLoading(false);
     }
@@ -111,21 +111,21 @@ const TranslateUrdu: React.FC<TranslateUrduProps> = ({ chapterId }) => {
         className={`translate-btn ${showTranslation ? 'active' : ''}`}
         onClick={handleTranslateClick}
         disabled={isLoading}
-        aria-label={showTranslation ? "Show original English content" : "Translate to Urdu"}
+        aria-label={showTranslation ? "اصل انگریزی مواد دکھائیں" : "اردو میں ترجمہ کریں"}
         aria-expanded={showTranslation}
         aria-busy={isLoading}
       >
         {isLoading ? (
           <>
             <span className="spinner"></span>
-            <span>Translating full chapter to Urdu... Please wait</span>
+            <span>اردو میں ترجمہ ہو رہا ہے... براہ کرم انتظار کریں</span>
           </>
         ) : showTranslation ? (
           <>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M3 12h18M3 6h18M3 18h18"/>
             </svg>
-            <span>Show Original</span>
+            <span>اصل مواد دکھائیں</span>
           </>
         ) : (
           <>
@@ -133,7 +133,6 @@ const TranslateUrdu: React.FC<TranslateUrduProps> = ({ chapterId }) => {
               <path d="m5 8 6 6M4 14l6-6 2-3M2 5h12M7 2h1M22 22l-5-10-5 10M14 18h6"/>
             </svg>
             <span>اردو میں ترجمہ کریں</span>
-            <span className="btn-label">(Translate to Urdu)</span>
           </>
         )}
       </button>
@@ -152,7 +151,7 @@ const TranslateUrdu: React.FC<TranslateUrduProps> = ({ chapterId }) => {
 
       {/* Urdu Translation Panel */}
       {showTranslation && urduContent && (
-        <div className="urdu-panel" role="region" aria-label="Urdu translation">
+        <div className="urdu-panel" role="region" aria-label="اردو ترجمہ">
           <div className="urdu-header">
             <h3 id="urdu-translation-heading">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -163,7 +162,7 @@ const TranslateUrdu: React.FC<TranslateUrduProps> = ({ chapterId }) => {
             <button
               className="close-btn"
               onClick={() => setShowTranslation(false)}
-              aria-label="Close Urdu translation panel"
+              aria-label="اردو ترجمہ پینل بند کریں"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <line x1="18" y1="6" x2="6" y2="18"/>
