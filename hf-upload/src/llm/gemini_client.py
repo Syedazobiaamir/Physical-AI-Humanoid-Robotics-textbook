@@ -2,6 +2,7 @@
 Google Gemini API client for embeddings and completions
 """
 import google.generativeai as genai
+from google.generativeai.types import HarmCategory, HarmBlockThreshold
 from typing import List, Optional
 import os
 from dotenv import load_dotenv
@@ -10,12 +11,20 @@ from ..utils.logger import logger
 load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 GEMINI_EMBEDDING_MODEL = os.getenv("GEMINI_EMBEDDING_MODEL", "models/text-embedding-004")
 
 # Configure Gemini
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
+
+# Safety settings for educational content - allow technical discussions
+SAFETY_SETTINGS = {
+    HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+    HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+    HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+}
 
 
 class GeminiClient:
@@ -127,11 +136,25 @@ class GeminiClient:
 
             response = self.model.generate_content(
                 full_prompt,
-                generation_config=generation_config
+                generation_config=generation_config,
+                safety_settings=SAFETY_SETTINGS
             )
 
-            completion = response.text
-            logger.info(f"Generated Gemini completion")
+            # Check if response was blocked
+            if not response.candidates:
+                block_reason = getattr(response.prompt_feedback, 'block_reason', 'Unknown')
+                logger.warning(f"Gemini response blocked: {block_reason}")
+                return None
+
+            # Check if candidate has content
+            candidate = response.candidates[0]
+            if not candidate.content or not candidate.content.parts:
+                finish_reason = getattr(candidate, 'finish_reason', 'Unknown')
+                logger.warning(f"Gemini candidate has no content. Finish reason: {finish_reason}")
+                return None
+
+            completion = candidate.content.parts[0].text
+            logger.info(f"Generated Gemini completion successfully")
             return completion
         except Exception as e:
             logger.error(f"Error generating Gemini completion: {str(e)}")
@@ -159,16 +182,24 @@ class GeminiClient:
             Generated response or None if failed
         """
         try:
-            # Build prompt with context
-            context_str = "\n\n".join([f"Context {i+1}:\n{ctx}" for i, ctx in enumerate(context)])
+            # Build prompt with context - limit context to avoid token limits
+            limited_context = context[:5]  # Limit to 5 context chunks
+            context_str = "\n\n".join([f"Context {i+1}:\n{ctx[:2000]}" for i, ctx in enumerate(limited_context)])
             prompt = f"{context_str}\n\nQuestion: {query}\n\nPlease answer the question based on the context provided above."
 
-            return await self.complete(
+            result = await self.complete(
                 prompt=prompt,
                 system_prompt=system_prompt or "You are a helpful assistant for a Physical AI and Humanoid Robotics textbook. Answer questions accurately based on the provided context.",
                 temperature=temperature,
                 max_tokens=max_tokens
             )
+
+            if result:
+                logger.info(f"RAG completion successful for query: {query[:50]}...")
+            else:
+                logger.warning(f"RAG completion returned None for query: {query[:50]}...")
+
+            return result
         except Exception as e:
             logger.error(f"Error generating Gemini completion with context: {str(e)}")
             return None
